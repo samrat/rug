@@ -202,10 +202,10 @@ fn main() -> std::io::Result<()> {
 
             for arg in &args[2..] {
                 let path = arg;
-                let data = workspace.read_file(&path);
+                let data = workspace.read_file(&path)?;
                 let stat = workspace.stat_file(&path)?;
 
-                let blob = Blob::new(workspace.read_file(&path)?.as_bytes());
+                let blob = Blob::new(data.as_bytes());
                 database.store(&blob)?;
                 index.add(&path, &blob.get_oid(), stat);
             }

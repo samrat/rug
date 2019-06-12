@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs::{self};
 use std::os::unix::fs::MetadataExt;
 use std::cmp;
@@ -56,7 +56,7 @@ impl Entry {
             size: metadata.size(),
             oid: oid.to_string(),
             flags: cmp::min(path.len() as u16, MAX_PATH_SIZE),
-            path: path,
+            path,
         }
     }
 
@@ -130,13 +130,12 @@ impl Index {
         self.lockfile.hold_for_update()?;
 
         let mut header_bytes : Vec<u8> = vec![];
-        header_bytes.extend_from_slice("DIRC".as_bytes());
+        header_bytes.extend_from_slice(b"DIRC");
         header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
         self.begin_write();
         self.write(&header_bytes)?;
-        for (key, entry) in self.entries.clone().iter() {
-            println!("writing {:?}", key);
+        for (_key, entry) in self.entries.clone().iter() {
             self.write(&entry.to_bytes())?;
         }
         self.finish_write()?;
