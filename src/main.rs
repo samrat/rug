@@ -202,19 +202,22 @@ fn main() -> std::io::Result<()> {
             let database = Database::new(&db_path);
             let mut index = Index::new(&git_path.join("index"));
 
+            index.load_for_update()?;
+
             for arg in &args[2..] {
                 let path = Path::new(arg).canonicalize()?;
-
                 for pathname in workspace.list_dir_files(&path)? {
                     let data = workspace.read_file(&pathname)?;
                     let stat = workspace.stat_file(&pathname)?;
 
                     let blob = Blob::new(data.as_bytes());
                     database.store(&blob)?;
+                    
                     index.add(&pathname, &blob.get_oid(), stat);
                 }
             }
 
+            println!("writing updates");
             index.write_updates()?;
             
             Ok(())

@@ -1,12 +1,13 @@
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, ErrorKind};
+use std::io::prelude::*;
 
 #[derive(Debug)]
 pub struct Lockfile {
     file_path: PathBuf,
     lock_path: PathBuf,
-    lock: Option<File>,
+    pub lock: Option<File>,
 }
 
 impl Lockfile {
@@ -54,6 +55,14 @@ impl Lockfile {
         Ok(())
     }
 
+    pub fn rollback(&mut self) -> Result<(), std::io::Error> {
+        self.raise_on_stale_lock();
+        fs::remove_file(self.lock_path.clone());
+        self.lock = None;
+
+        Ok(())
+    }
+
     fn raise_on_stale_lock(&self) -> Result<(), std::io::Error> {
         if self.lock.is_none() {
             Err(io::Error::new(ErrorKind::Other,
@@ -61,5 +70,19 @@ impl Lockfile {
         } else {
             Ok(())
         }
+    }
+}
+
+impl Write for Lockfile {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.raise_on_stale_lock()?;
+
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.flush()
     }
 }
