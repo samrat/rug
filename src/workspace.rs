@@ -4,6 +4,13 @@ use std::os::unix::fs::PermissionsExt;
 use std::io::{BufReader};
 use std::io::prelude::*;
 
+lazy_static! {
+    static ref IGNORE_PATHS : Vec<&'static str> = {
+        let v = vec![".git", "target"];
+        v
+    };
+}
+
 pub struct Workspace {
     path: PathBuf,
 }
@@ -22,8 +29,10 @@ impl Workspace {
                            .to_string()]);
         }
 
-        let ignore_paths = [".git", "target"];
-        if ignore_paths.contains(&dir.file_name().unwrap().to_str().unwrap()) {
+        if IGNORE_PATHS.contains(&dir.file_name()
+                                 .unwrap()
+                                 .to_str()
+                                 .unwrap()) {
             return Ok(vec![]);
         }
         

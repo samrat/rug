@@ -2,6 +2,8 @@ extern crate crypto;
 extern crate flate2;
 extern crate rand;
 extern crate chrono;
+#[macro_use]
+extern crate lazy_static;
 
 use std::env;
 use std::path::{Path, PathBuf};
