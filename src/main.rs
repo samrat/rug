@@ -200,13 +200,15 @@ fn main() -> std::io::Result<()> {
             let database = Database::new(&db_path);
             let mut index = Index::new(&git_path.join("index"));
 
-            let path = &args[2];
-            let data = workspace.read_file(&path);
-            let stat = workspace.stat_file(&path)?;
+            for arg in &args[2..] {
+                let path = arg;
+                let data = workspace.read_file(&path);
+                let stat = workspace.stat_file(&path)?;
 
-            let blob = Blob::new(workspace.read_file(&path)?.as_bytes());
-            database.store(&blob)?;
-            index.add(&path, &blob.get_oid(), stat);
+                let blob = Blob::new(workspace.read_file(&path)?.as_bytes());
+                database.store(&blob)?;
+                index.add(&path, &blob.get_oid(), stat);
+            }
 
             index.write_updates()?;
             

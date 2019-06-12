@@ -83,7 +83,7 @@ impl Entry {
         bytes.extend_from_slice(self.path.as_bytes());
         bytes.push(0x0);
 
-        // TODO: add padding
+        // add padding
         while bytes.len() % 8 != 0 {
             bytes.push(0x0)
         }
@@ -127,18 +127,19 @@ impl Index {
     }
 
     pub fn write_updates(&mut self) -> Result<(), std::io::Error> {
-        self.lockfile.hold_for_update();
+        self.lockfile.hold_for_update()?;
 
         let mut header_bytes : Vec<u8> = vec![];
         header_bytes.extend_from_slice("DIRC".as_bytes());
         header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
         self.begin_write();
-        self.write(&header_bytes);
-        for (_key, entry) in self.entries.clone().iter() {
-            self.write(&entry.to_bytes());
+        self.write(&header_bytes)?;
+        for (key, entry) in self.entries.clone().iter() {
+            println!("writing {:?}", key);
+            self.write(&entry.to_bytes())?;
         }
-        self.finish_write();
+        self.finish_write()?;
         Ok(())
     }
 
