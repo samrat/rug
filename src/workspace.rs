@@ -13,7 +13,15 @@ impl Workspace {
         Workspace { path: path.to_path_buf() }
     }
 
-    fn list_dir_files(&self, dir: &Path) -> Result<Vec<String>, std::io::Error> {
+    pub fn list_dir_files(&self, dir: &Path) -> Result<Vec<String>, std::io::Error> {
+        if !File::open(&dir)?.metadata()?.is_dir() {
+            return Ok(vec![dir.strip_prefix(self.path.clone())
+                           .unwrap()
+                           .to_str()
+                           .unwrap()
+                           .to_string()]);
+        }
+
         let ignore_paths = [".git", "target"];
         if ignore_paths.contains(&dir.file_name().unwrap().to_str().unwrap()) {
             return Ok(vec![]);
@@ -22,22 +30,7 @@ impl Workspace {
         let mut files = vec![];
         for file in fs::read_dir(dir)? {
             let path = file?.path();
-            if File::open(&path)?.metadata()?.is_dir() {
-                files.extend_from_slice(&self.list_dir_files(&path)?);
-                continue;
-            } else {
-                let file_name = path.file_name().unwrap();
-                let file_name_str = file_name.to_str()
-                    .expect("invalid filename");
-                if !ignore_paths.contains(&file_name_str) {
-                    files.push(dir.join(file_name_str.to_string())
-                               .strip_prefix(self.path.clone())
-                               .unwrap()
-                               .to_str()
-                               .unwrap()
-                               .to_string());
-                }
-            }
+            files.extend_from_slice(&self.list_dir_files(&path)?);
         }
         Ok(files)
     }

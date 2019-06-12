@@ -201,13 +201,16 @@ fn main() -> std::io::Result<()> {
             let mut index = Index::new(&git_path.join("index"));
 
             for arg in &args[2..] {
-                let path = arg;
-                let data = workspace.read_file(&path)?;
-                let stat = workspace.stat_file(&path)?;
+                let path = Path::new(arg).canonicalize()?;
 
-                let blob = Blob::new(data.as_bytes());
-                database.store(&blob)?;
-                index.add(&path, &blob.get_oid(), stat);
+                for pathname in workspace.list_dir_files(&path)? {
+                    let data = workspace.read_file(&pathname)?;
+                    let stat = workspace.stat_file(&pathname)?;
+
+                    let blob = Blob::new(data.as_bytes());
+                    database.store(&blob)?;
+                    index.add(&pathname, &blob.get_oid(), stat);
+                }
             }
 
             index.write_updates()?;
