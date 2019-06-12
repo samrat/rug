@@ -2,7 +2,7 @@ use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::io::{self, ErrorKind, Write};
 
-
+#[derive(Debug)]
 pub struct Lockfile {
     file_path: PathBuf,
     lock_path: PathBuf,
@@ -33,13 +33,18 @@ impl Lockfile {
     }
 
     pub fn write(&mut self, contents: &str) -> Result<(), std::io::Error> {
+        self.write_bytes(contents.as_bytes())
+    }
+
+    pub fn write_bytes(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
         self.raise_on_stale_lock()?;
 
         let mut lock = self.lock.as_ref().unwrap();
-        lock.write_all(contents.as_bytes())?;
+        lock.write_all(data)?;
 
         Ok(())
     }
+
 
     pub fn commit(&mut self) -> Result<(), std::io::Error> {
         self.raise_on_stale_lock()?;

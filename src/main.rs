@@ -20,6 +20,10 @@ use database::{Object, Blob, Tree, Database, Entry};
 mod workspace;
 use workspace::Workspace;
 
+mod index;
+use index::Index;
+
+mod util;
 
 struct Refs {
     pathname: PathBuf,
@@ -66,8 +70,6 @@ impl Refs {
         }
     }
 }
-
-
 
 struct Author {
     name: String,
@@ -187,6 +189,29 @@ fn main() -> std::io::Result<()> {
             println!("[{}{}] {}", commit_prefix, commit.get_oid(), commit.message);
             
             Ok(())
+        },
+        "add" => {
+            let working_dir = env::current_dir()?;
+            let root_path = working_dir.as_path();
+            let git_path = root_path.join(".git");
+            let db_path = git_path.join("objects");
+            
+            let workspace = Workspace::new(root_path);
+            let database = Database::new(&db_path);
+            let mut index = Index::new(&git_path.join("index"));
+
+            let path = &args[2];
+            let data = workspace.read_file(&path);
+            let stat = workspace.stat_file(&path)?;
+
+            let blob = Blob::new(workspace.read_file(&path)?.as_bytes());
+            database.store(&blob)?;
+            index.add(&path, &blob.get_oid(), stat);
+
+            index.write_updates()?;
+            
+            Ok(())
+
         },
         _ => panic!("invalid command: {}", command),
     }

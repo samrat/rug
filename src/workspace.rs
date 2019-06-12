@@ -59,4 +59,9 @@ impl Workspace {
         let file = File::open(self.path.join(file_name))?;
         Ok(file.metadata()?.permissions().mode())
     }
+
+    pub fn stat_file(&self, file_name: &str) -> Result<fs::Metadata, std::io::Error> {
+        let file = File::open(self.path.join(file_name))?;
+        file.metadata()
+    }
 }

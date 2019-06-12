@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::io::prelude::*;
 use std::fs::{self, OpenOptions};
-use std::num::ParseIntError;
 
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
@@ -13,12 +12,7 @@ use flate2::write::ZlibEncoder;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
-fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
-        .collect()
-}
+use crate::util::*;
 
 pub trait Object {
     fn r#type(&self) -> String;
