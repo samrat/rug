@@ -85,16 +85,16 @@ impl Entry {
             .unwrap().to_string();
 
         Ok(Entry {
-            ctime: metadata_ints[0] as i64,
-            ctime_nsec: metadata_ints[1] as i64,
-            mtime: metadata_ints[2] as i64,
-            mtime_nsec: metadata_ints[3] as i64,
-            dev: metadata_ints[4] as u64,
-            ino: metadata_ints[5] as u64,
+            ctime: i64::from(metadata_ints[0]),
+            ctime_nsec: i64::from(metadata_ints[1]),
+            mtime: i64::from(metadata_ints[2]),
+            mtime_nsec: i64::from(metadata_ints[3]),
+            dev: u64::from(metadata_ints[4]),
+            ino: u64::from(metadata_ints[5]),
             mode: metadata_ints[6],
             uid: metadata_ints[7],
             gid: metadata_ints[8],
-            size: metadata_ints[9] as u64,
+            size: u64::from(metadata_ints[9]),
 
             oid,
             flags,
@@ -157,15 +157,15 @@ where T: Read + Write {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
-        self.file.write(data)?;
+        self.file.write_all(data)?;
         self.digest.input(data);
 
         Ok(())
     }
 
     fn write_checksum(&mut self) -> Result<(), std::io::Error> {
-        self.file.write(&decode_hex(&self.digest.result_str())
-                        .unwrap())?;
+        self.file.write_all(&decode_hex(&self.digest.result_str())
+                            .unwrap())?;
 
         Ok(())
     }
