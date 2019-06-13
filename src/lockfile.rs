@@ -56,8 +56,8 @@ impl Lockfile {
     }
 
     pub fn rollback(&mut self) -> Result<(), std::io::Error> {
-        self.raise_on_stale_lock();
-        fs::remove_file(self.lock_path.clone());
+        self.raise_on_stale_lock()?;
+        fs::remove_file(self.lock_path.clone())?;
         self.lock = None;
 
         Ok(())
@@ -73,7 +73,39 @@ impl Lockfile {
     }
 }
 
+impl Read for Lockfile {
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.raise_on_stale_lock()?;
+
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.read(&mut buf)
+    }
+}
+
 impl Write for Lockfile {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.raise_on_stale_lock()?;
+
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.flush()
+    }
+}
+
+impl<'a> Read for &'a Lockfile {
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
+        self.raise_on_stale_lock()?;
+
+        let mut lock = self.lock.as_ref().unwrap();
+        lock.read(&mut buf)
+    }
+}
+
+impl<'a> Write for &'a Lockfile {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         self.raise_on_stale_lock()?;
 

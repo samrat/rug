@@ -217,7 +217,6 @@ fn main() -> std::io::Result<()> {
                 }
             }
 
-            println!("writing updates");
             index.write_updates()?;
             
             Ok(())

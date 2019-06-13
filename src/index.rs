@@ -70,12 +70,10 @@ impl Entry {
     fn parse(bytes: &[u8]) -> Result<Entry, std::io::Error> {
         let mut metadata_ints : Vec<u32> = vec![];
         for i in 0..10 {
-            println!("{} .. {}", i*4, i*4 + 4);
             metadata_ints.push(
                 u32::from_be_bytes(bytes[i*4 .. i*4 + 4]
                                    .try_into().unwrap())
             );
-            println!("{:?}", metadata_ints);
         };
 
         let oid = encode_hex(&bytes[40..60]);
@@ -136,13 +134,15 @@ impl Entry {
     }
 }
 
-pub struct Checksum {
-    file: File,
+pub struct Checksum<T>
+where T : Read + Write {
+    file: T,
     digest: Sha1,
 }
 
-impl Checksum {
-    fn new(file: File) -> Checksum {
+impl<T> Checksum<T>
+where T: Read + Write {
+    fn new(file: T) -> Checksum<T> {
         Checksum { file,
                    digest: Sha1::new(),
         }
@@ -151,6 +151,7 @@ impl Checksum {
     fn read(&mut self, size: usize) -> Result<Vec<u8>, std::io::Error> {
         let mut buf = vec![0; size];
         self.file.read_exact(&mut buf)?;
+        self.digest.input(&buf);
 
         Ok(buf)
     }
@@ -163,7 +164,8 @@ impl Checksum {
     }
 
     fn write_checksum(&mut self) -> Result<(), std::io::Error> {
-        self.file.write(self.digest.result_str().as_bytes())?;
+        self.file.write(&decode_hex(&self.digest.result_str())
+                        .unwrap())?;
 
         Ok(())
     }
@@ -176,9 +178,6 @@ impl Checksum {
 
         let sum = encode_hex(&buf);
 
-        println!("hash: {}", hash);
-        println!("sum: {}", sum);
-
         if sum != hash {
             return Err(io::Error::new(ErrorKind::Other,
                                       "Checksum does not match value stored on disk"));
@@ -186,6 +185,7 @@ impl Checksum {
 
         Ok(())
     }
+
 }
 
 pub struct Index {
@@ -206,40 +206,25 @@ impl Index {
         }
     }
 
-    pub fn begin_write(&mut self) {
-        self.hasher = Some(Sha1::new());
-    }
-
-    pub fn write(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
-        self.lockfile.write_bytes(data)?;
-        self.hasher.expect("Sha1 hasher not initialized").input(data);
-
-        Ok(())
-    }
-
-    pub fn finish_write(&mut self) -> Result<(), std::io::Error> {
-        let hash = self.hasher
-            .expect("Sha1 hasher not initialized")
-            .result_str();
-        self.lockfile.write_bytes(&decode_hex(&hash).expect("invalid sha1"))?;
-        self.lockfile.commit()?;
-
-        Ok(())
-    }
-
     pub fn write_updates(mut self) -> Result<(), std::io::Error> {
-        self.lockfile.hold_for_update()?;
+        if !self.changed {
+            println!("rolling back");
+            return self.lockfile.rollback();
+        }
+
+        let mut lock = self.lockfile;
+        let mut writer : Checksum<&Lockfile> = Checksum::new(&lock);
 
         let mut header_bytes : Vec<u8> = vec![];
         header_bytes.extend_from_slice(b"DIRC");
         header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
-        self.begin_write();
-        self.write(&header_bytes)?;
+        writer.write(&header_bytes)?;
         for (_key, entry) in self.entries.clone().iter() {
-            self.write(&entry.to_bytes())?;
+            writer.write(&entry.to_bytes())?;
         }
-        self.finish_write()?;
+        writer.write_checksum()?;
+        lock.commit()?;
         Ok(())
     }
 
@@ -277,7 +262,7 @@ impl Index {
         }
     }
 
-    fn read_header(checksum: &mut Checksum) -> usize {
+    fn read_header(checksum: &mut Checksum<File>) -> usize {
         let data = checksum.read(HEADER_SIZE)
             .expect("could not read checksum header");
         let signature = str::from_utf8(&data[0..4])
@@ -300,14 +285,13 @@ impl Index {
         count as usize
     }
 
-    fn read_entries(&mut self, checksum: &mut Checksum, count: usize) -> Result<(), std::io::Error> {
+    fn read_entries(&mut self, checksum: &mut Checksum<File>, count: usize) -> Result<(), std::io::Error> {
         for _i in 0..count {
             let mut entry = checksum.read(MIN_ENTRY_SIZE)?;
             while entry.last().unwrap() != &0u8 {
                 entry.extend_from_slice(&checksum.read(8)?);
             }
 
-            println!("entry: {:?}", entry);
             self.store_entry(Entry::parse(&entry)?);
         }
 
