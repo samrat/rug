@@ -208,7 +208,6 @@ impl Index {
 
     pub fn write_updates(mut self) -> Result<(), std::io::Error> {
         if !self.changed {
-            println!("rolling back");
             return self.lockfile.rollback();
         }
 
@@ -309,4 +308,77 @@ impl Index {
 
         Ok(())
     }
+}
+
+#[test]
+fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
+    // Create index file, using "stock" git and our implementation and
+    // check that they are byte-for-byte equal
+
+    use super::*;
+    use std::process::Command;
+
+    let mut temp_dir = generate_temp_name();
+    temp_dir.push_str("_jit_test");
+
+    let root_path = Path::new("/tmp").join(temp_dir);
+    fs::create_dir(&root_path);
+
+    let git_path = root_path.join(".git");
+    let db_path = git_path.join("objects");
+
+    let workspace = Workspace::new(&root_path);
+    let database = Database::new(&db_path);
+    fs::create_dir(&git_path);
+    let mut index = Index::new(&git_path.join("index"));
+
+    index.load_for_update()?;
+
+    // Create some files
+    File::create(root_path.join("f1.txt"))?
+        .write(b"file 1")?;
+    File::create(root_path.join("f2.txt"))?
+        .write(b"file 2")?;
+
+    // Create an index out of those files
+    for pathname in workspace.list_dir_files(&root_path)? {
+        let data = workspace.read_file(&pathname)?;
+        let stat = workspace.stat_file(&pathname)?;
+
+        let blob = Blob::new(data.as_bytes());
+        database.store(&blob)?;
+
+        index.add(&pathname, &blob.get_oid(), stat);
+    }
+
+    index.write_updates()?;
+
+    // Store contents of our index file
+    let mut our_index = File::open(&git_path.join("index"))?;
+    let mut our_index_contents = Vec::new();
+    our_index.read_to_end(&mut our_index_contents)?;
+    our_index_contents.push(0x20);
+
+    // Remove .git dir that we created
+    fs::remove_dir_all(&git_path)?;
+
+    // Create index using "stock" git
+    let _git_init_output = Command::new("git")
+        .current_dir(&root_path)
+        .arg("init")
+        .arg(".")
+        .output();
+    let git_output = Command::new("git")
+        .current_dir(&root_path)
+        .arg("add")
+        .arg(".")
+        .output();
+
+    let mut git_index = File::open(&git_path.join("index"))?;
+    let mut git_index_contents = Vec::new();
+    git_index.read_to_end(&mut git_index_contents)?;
+
+    assert_eq!(our_index_contents, git_index_contents);
+
+    Ok(())
 }

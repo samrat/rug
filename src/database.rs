@@ -9,9 +9,6 @@ use crypto::sha1::Sha1;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
-
 use crate::util::*;
 
 pub trait Object {
@@ -204,13 +201,6 @@ impl Database {
         self.write_object(oid, content)
     }
 
-    fn generate_temp_name() -> String {
-        thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(6)
-            .collect()
-    }
-
     fn write_object(&self, oid: String, content: Vec<u8>) -> Result<(), std::io::Error> {
         let dir : &str = &oid[0..2];
         let filename : &str = &oid[2..];
@@ -225,7 +215,7 @@ impl Database {
         let dir_path = object_path.parent().expect("invalid parent path");
         fs::create_dir_all(dir_path)?;
         let mut temp_file_name = String::from("tmp_obj_");
-        temp_file_name.push_str(&Self::generate_temp_name());
+        temp_file_name.push_str(&generate_temp_name());
         let temp_path = dir_path.join(temp_file_name);
 
         let mut file = OpenOptions::new()
