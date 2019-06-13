@@ -148,20 +148,14 @@ fn main() -> std::io::Result<()> {
             let git_path = root_path.join(".git");
             let db_path = git_path.join("objects");
 
-            let workspace = Workspace::new(root_path);
             let database = Database::new(&db_path);
             let refs = Refs::new(git_path.as_path());
+            let mut index = Index::new(&git_path.join("index"));
 
-            let mut entries = Vec::new();
-            
-            for path in workspace.list_files()? {
-                let blob = Blob::new(workspace.read_file(&path)?.as_bytes());
-                database.store(&blob)?;
-                let mode = workspace.file_mode(&path)?;
-
-                entries.push(Entry::new(&path, &blob.get_oid(), mode));
-            };
-
+            index.load()?;
+            let entries : Vec<Entry> = index.entries.iter()
+                .map(|(_path, idx_entry)| Entry::from(idx_entry))
+                .collect();
             let root = Tree::build(&entries);
             root.traverse(&database)?;
 
@@ -206,7 +200,7 @@ fn main() -> std::io::Result<()> {
 
             for arg in &args[2..] {
                 let path = Path::new(arg).canonicalize()?;
-                for pathname in workspace.list_dir_files(&path)? {
+                for pathname in workspace.list_files(&path)? {
                     let data = workspace.read_file(&pathname)?;
                     let stat = workspace.stat_file(&pathname)?;
 

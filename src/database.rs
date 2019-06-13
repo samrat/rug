@@ -10,6 +10,7 @@ use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
 use crate::util::*;
+use crate::index;
 
 pub trait Object {
     fn r#type(&self) -> String;
@@ -55,7 +56,6 @@ impl Object for Blob {
         self.data.clone()
     }
 }
-
 
 #[derive(Clone, Debug)]
 enum TreeEntry {
@@ -160,6 +160,16 @@ pub struct Entry {
     name: String,
     oid: String,
     mode: u32,
+}
+
+impl From<&index::Entry> for Entry {
+    fn from(entry: &index::Entry) -> Entry {
+        Entry {
+            name: entry.path.clone(),
+            oid: entry.oid.clone(),
+            mode: entry.mode,
+        }
+    }
 }
 
 impl Entry {

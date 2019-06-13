@@ -26,13 +26,13 @@ pub struct Entry {
     mtime_nsec: i64,
     dev: u64,
     ino: u64,
-    mode: u32,
     uid: u32,
     gid: u32,
     size: u64,
-    oid: String,
     flags: u16,
-    path: String,
+    pub mode: u32,
+    pub oid: String,
+    pub path: String,
 }
 
 impl Entry {
@@ -190,7 +190,7 @@ where T: Read + Write {
 
 pub struct Index {
     pathname: PathBuf,
-    entries: BTreeMap<String, Entry>,
+    pub entries: BTreeMap<String, Entry>,
     lockfile: Lockfile,
     hasher: Option<Sha1>,
     changed: bool,
@@ -297,7 +297,7 @@ impl Index {
         Ok(())
     }
 
-    fn load(&mut self) -> Result<(), std::io::Error> {
+    pub fn load(&mut self) -> Result<(), std::io::Error> {
         self.clear();
         if let Some(file) = self.open_index_file() {
             let mut reader = Checksum::new(file);
@@ -322,14 +322,14 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     temp_dir.push_str("_jit_test");
 
     let root_path = Path::new("/tmp").join(temp_dir);
-    fs::create_dir(&root_path);
+    fs::create_dir(&root_path)?;
 
     let git_path = root_path.join(".git");
     let db_path = git_path.join("objects");
 
     let workspace = Workspace::new(&root_path);
     let database = Database::new(&db_path);
-    fs::create_dir(&git_path);
+    fs::create_dir(&git_path)?;
     let mut index = Index::new(&git_path.join("index"));
 
     index.load_for_update()?;
@@ -341,7 +341,7 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
         .write(b"file 2")?;
 
     // Create an index out of those files
-    for pathname in workspace.list_dir_files(&root_path)? {
+    for pathname in workspace.list_files(&root_path)? {
         let data = workspace.read_file(&pathname)?;
         let stat = workspace.stat_file(&pathname)?;
 
