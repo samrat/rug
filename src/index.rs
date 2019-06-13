@@ -357,7 +357,6 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     let mut our_index = File::open(&git_path.join("index"))?;
     let mut our_index_contents = Vec::new();
     our_index.read_to_end(&mut our_index_contents)?;
-    our_index_contents.push(0x20);
 
     // Remove .git dir that we created
     fs::remove_dir_all(&git_path)?;
@@ -368,7 +367,7 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
         .arg("init")
         .arg(".")
         .output();
-    let git_output = Command::new("git")
+    let _git_output = Command::new("git")
         .current_dir(&root_path)
         .arg("add")
         .arg(".")
@@ -379,6 +378,9 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     git_index.read_to_end(&mut git_index_contents)?;
 
     assert_eq!(our_index_contents, git_index_contents);
+
+    // Cleanup
+    fs::remove_dir_all(&root_path)?;
 
     Ok(())
 }
