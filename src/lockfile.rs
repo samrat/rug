@@ -25,7 +25,7 @@ impl Lockfile {
                 .read(true)
                 .write(true)
                 .create_new(true)
-                .open(self.lock_path.clone())?;
+                .open(&self.lock_path)?;
             
             self.lock = Some(open_file);
         }
@@ -50,14 +50,14 @@ impl Lockfile {
     pub fn commit(&mut self) -> Result<(), std::io::Error> {
         self.raise_on_stale_lock()?;
         self.lock = None;
-        fs::rename(self.lock_path.clone(), self.file_path.clone())?;
+        fs::rename(&self.lock_path, &self.file_path)?;
 
         Ok(())
     }
 
     pub fn rollback(&mut self) -> Result<(), std::io::Error> {
         self.raise_on_stale_lock()?;
-        fs::remove_file(self.lock_path.clone())?;
+        fs::remove_file(&self.lock_path)?;
         self.lock = None;
 
         Ok(())
@@ -116,5 +116,13 @@ impl<'a> Write for &'a Lockfile {
     fn flush(&mut self) -> Result<(), io::Error> {
         let mut lock = self.lock.as_ref().unwrap();
         lock.flush()
+    }
+}
+
+impl Drop for Lockfile {
+    fn drop(&mut self) {
+        if self.lock.is_some() {
+            fs::remove_file(&self.lock_path).expect("Could not delete lockfile");
+        }
     }
 }
