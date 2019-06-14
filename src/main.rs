@@ -200,25 +200,32 @@ fn main() -> std::io::Result<()> {
 
             let mut paths = vec![];
             for arg in &args[2..] {
-                let path = Path::new(arg).canonicalize();
-                match path {
-                    Ok(path) => {
-                        for pathname in workspace.list_files(&path)? {
-                            paths.push(pathname);
-                        }
-                    },
-                    _ => {
+                let path = match Path::new(arg).canonicalize() {
+                    Ok(path) => path,
+                    Err(_) => {
                         stderr().write_all(format!("pathspec '{:}' did not match any files\n",
                                                    arg).as_bytes())?;
                         index.release_lock()?;
                         std::process::exit(1);
-                    }
+                    },
+                };
+
+                for pathname in workspace.list_files(&path)? {
+                    paths.push(pathname);
                 }
-                    
             }
 
             for pathname in paths {
-                let data = workspace.read_file(&pathname)?;
+                let data = match workspace.read_file(&pathname) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        stderr().write_all(format!("{}\n", err).as_bytes())?;
+                        stderr().write_all(b"fatal: adding files failed\n")?;
+
+                        index.release_lock()?;
+                        std::process::exit(128);
+                    },
+                };
                 let stat = workspace.stat_file(&pathname)?;
 
                 let blob = Blob::new(data.as_bytes());
