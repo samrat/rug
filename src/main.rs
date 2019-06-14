@@ -9,7 +9,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io::{self, stderr};
+use std::io;
 
 use chrono::Utc;
 
@@ -196,15 +196,30 @@ fn main() -> std::io::Result<()> {
             let database = Database::new(&db_path);
             let mut index = Index::new(&git_path.join("index"));
 
-            index.load_for_update()?;
+            match index.load_for_update() {
+                Ok(_) => (),
+                Err(ref e)
+                    if e.kind() == io::ErrorKind::AlreadyExists => {
+                    eprintln!("fatal: {}
+
+Another jit process seems to be running in this repository. Please make sure all processes are terminated then try again.
+
+If it still fails, a jit process may have crashed in this repository earlier: remove the .git/index.lock file manually to continue.",
+                              e);
+                    std::process::exit(128);
+                    },
+                Err(_) => {
+                    eprintln!("fatal: could not create/load .git/index");
+                    std::process::exit(128);
+                },
+            }
 
             let mut paths = vec![];
             for arg in &args[2..] {
                 let path = match Path::new(arg).canonicalize() {
                     Ok(path) => path,
                     Err(_) => {
-                        stderr().write_all(format!("pathspec '{:}' did not match any files\n",
-                                                   arg).as_bytes())?;
+                        eprintln!("fatal: pathspec '{:}' did not match any files", arg);
                         index.release_lock()?;
                         std::process::exit(1);
                     },
@@ -218,12 +233,16 @@ fn main() -> std::io::Result<()> {
             for pathname in paths {
                 let data = match workspace.read_file(&pathname) {
                     Ok(data) => data,
-                    Err(err) => {
-                        stderr().write_all(format!("{}\n", err).as_bytes())?;
-                        stderr().write_all(b"fatal: adding files failed\n")?;
+                    Err(ref err)
+                        if err.kind() == io::ErrorKind::PermissionDenied => {
+                        eprintln!("{}", err);
+                        eprintln!("fatal: adding files failed");
 
                         index.release_lock()?;
                         std::process::exit(128);
+                    },
+                    _ => {
+                        panic!("fatal: adding files failed");
                     },
                 };
                 let stat = workspace.stat_file(&pathname)?;
