@@ -380,6 +380,10 @@ impl Index {
 
         Ok(())
     }
+
+    pub fn release_lock(&mut self) -> Result<(), std::io::Error> {
+        self.lockfile.rollback()
+    }
 }
 
 #[test]

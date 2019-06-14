@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
-use std::io::{BufReader};
+use std::io::BufReader;
 use std::io::prelude::*;
 
 lazy_static! {
@@ -20,8 +20,8 @@ impl Workspace {
     }
 
     pub fn list_files(&self, dir: &Path) -> Result<Vec<String>, std::io::Error> {
-        if !File::open(&dir)?.metadata()?.is_dir() {
-            return Ok(vec![dir.strip_prefix(self.path.clone())
+        if dir.is_file() {
+            return Ok(vec![dir.strip_prefix(&self.path)
                            .unwrap()
                            .to_str()
                            .unwrap()

@@ -232,7 +232,7 @@ impl Database {
             .read(true)
             .write(true)
             .create_new(true)
-            .open(temp_path.clone())?;
+            .open(&temp_path)?;
 
         let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
         e.write_all(&content)?;

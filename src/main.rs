@@ -9,7 +9,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io;
+use std::io::{self, stderr};
 
 use chrono::Utc;
 
@@ -198,17 +198,33 @@ fn main() -> std::io::Result<()> {
 
             index.load_for_update()?;
 
+            let mut paths = vec![];
             for arg in &args[2..] {
-                let path = Path::new(arg).canonicalize()?;
-                for pathname in workspace.list_files(&path)? {
-                    let data = workspace.read_file(&pathname)?;
-                    let stat = workspace.stat_file(&pathname)?;
-
-                    let blob = Blob::new(data.as_bytes());
-                    database.store(&blob)?;
-                    
-                    index.add(&pathname, &blob.get_oid(), &stat);
+                let path = Path::new(arg).canonicalize();
+                match path {
+                    Ok(path) => {
+                        for pathname in workspace.list_files(&path)? {
+                            paths.push(pathname);
+                        }
+                    },
+                    _ => {
+                        stderr().write_all(format!("pathspec '{:}' did not match any files\n",
+                                                   arg).as_bytes())?;
+                        index.release_lock()?;
+                        std::process::exit(1);
+                    }
                 }
+                    
+            }
+
+            for pathname in paths {
+                let data = workspace.read_file(&pathname)?;
+                let stat = workspace.stat_file(&pathname)?;
+
+                let blob = Blob::new(data.as_bytes());
+                database.store(&blob)?;
+                
+                index.add(&pathname, &blob.get_oid(), &stat);
             }
 
             index.write_updates()?;
