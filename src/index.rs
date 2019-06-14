@@ -48,7 +48,7 @@ impl Entry {
         }
     }
     
-    fn new(pathname: &str, oid: &str, metadata: fs::Metadata) -> Entry {
+    fn new(pathname: &str, oid: &str, metadata: &fs::Metadata) -> Entry {
         let path = pathname.to_string();
         Entry {
             ctime: metadata.ctime(),
@@ -227,8 +227,25 @@ impl Index {
         Ok(())
     }
 
-    pub fn add(&mut self, pathname: &str, oid: &str, metadata: fs::Metadata) {
+    /// Remove any entries whose name matches the name of one of the
+    /// new entry's parent directories
+    pub fn discard_conflicts(&mut self, entry: &Entry) {
+        let path = Path::new(&entry.path);
+        let mut parent_dirs : Vec<_> = path.ancestors()
+            .map(|d| d.to_str().expect("invalid filename"))
+            .collect();
+        parent_dirs.reverse();
+        parent_dirs.pop();      // drop filename
+
+        for dirname in parent_dirs {
+            self.entries.remove(dirname);
+        }
+    }
+
+    pub fn add(&mut self, pathname: &str, oid: &str, metadata: &fs::Metadata) {
         let entry = Entry::new(pathname, oid, metadata);
+        println!("adding {:?}", pathname);
+        self.discard_conflicts(&entry);
         self.store_entry(entry);
         self.changed = true;
     }
@@ -330,18 +347,28 @@ fn add_single_file() -> Result<(), std::io::Error> {
                          .map(|_n| random::<u8>())
                          .collect::<Vec<u8>>());
 
-    let f1_filename = "f1.txt";
+    let f1_filename = "alice.txt";
     let f1_path = root_path.join(f1_filename);
     File::create(&f1_path)?
         .write(b"file 1")?;
     let stat = workspace.stat_file(f1_filename)?;
-    index.add(f1_filename, &oid, stat);
+    index.add(f1_filename, &oid, &stat);
 
     let index_entry_paths : Vec<&String> = index.entries.iter()
         .map(|(path, _)| path)
         .collect();
 
     assert_eq!(vec![f1_filename], index_entry_paths);
+
+    // Replace file with directory
+    index.add("alice.txt/nested.txt", &oid, &stat);
+    index.add("bob.txt", &oid, &stat);
+    let index_entry_paths : Vec<&String> = index.entries.iter()
+        .map(|(path, _)| path)
+        .collect();
+
+    assert_eq!(vec!["alice.txt/nested.txt", "bob.txt"], 
+               index_entry_paths);
 
     // Cleanup
     fs::remove_dir_all(&root_path)?;
@@ -387,7 +414,7 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
         let blob = Blob::new(data.as_bytes());
         database.store(&blob)?;
 
-        index.add(&pathname, &blob.get_oid(), stat);
+        index.add(&pathname, &blob.get_oid(), &stat);
     }
 
     index.write_updates()?;

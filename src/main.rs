@@ -207,7 +207,7 @@ fn main() -> std::io::Result<()> {
                     let blob = Blob::new(data.as_bytes());
                     database.store(&blob)?;
                     
-                    index.add(&pathname, &blob.get_oid(), stat);
+                    index.add(&pathname, &blob.get_oid(), &stat);
                 }
             }
 
