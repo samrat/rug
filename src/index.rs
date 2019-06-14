@@ -311,6 +311,45 @@ impl Index {
 }
 
 #[test]
+fn add_single_file() -> Result<(), std::io::Error> {
+    // Add a file to an index and check that it's there
+    use super::*;
+    use rand::random;
+
+    let mut temp_dir = generate_temp_name();
+    temp_dir.push_str("_jit_test");
+
+    let root_path = Path::new("/tmp").join(temp_dir);
+    fs::create_dir(&root_path)?;
+
+    let workspace = Workspace::new(&root_path);
+    let index_path = root_path.join("index");
+    let mut index = Index::new(&index_path);
+
+    let oid = encode_hex(&(0..20)
+                         .map(|_n| random::<u8>())
+                         .collect::<Vec<u8>>());
+
+    let f1_filename = "f1.txt";
+    let f1_path = root_path.join(f1_filename);
+    File::create(&f1_path)?
+        .write(b"file 1")?;
+    let stat = workspace.stat_file(f1_filename)?;
+    index.add(f1_filename, &oid, stat);
+
+    let index_entry_paths : Vec<&String> = index.entries.iter()
+        .map(|(path, _)| path)
+        .collect();
+
+    assert_eq!(vec![f1_filename], index_entry_paths);
+
+    // Cleanup
+    fs::remove_dir_all(&root_path)?;
+
+    Ok(())
+}
+
+#[test]
 fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     // Create index file, using "stock" git and our implementation and
     // check that they are byte-for-byte equal
