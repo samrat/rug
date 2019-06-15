@@ -6,15 +6,12 @@ extern crate chrono;
 extern crate lazy_static;
 
 use std::env;
-use std::path::{Path, PathBuf};
-use std::fs::{self, File};
+use std::path::Path;
+use std::fs;
 use std::io::prelude::*;
 use std::io;
 
-use chrono::Utc;
-
 mod lockfile;
-use lockfile::Lockfile;
 
 mod database;
 use database::{Object, Blob, Tree, Database, Entry};
@@ -27,99 +24,11 @@ use index::Index;
 
 mod util;
 
-struct Refs {
-    pathname: PathBuf,
-}
+mod refs;
+use refs::Refs;
 
-impl Refs {
-    fn new(pathname: &Path) -> Refs {
-        Refs { pathname: pathname.to_path_buf() }
-    }
-    
-    fn head_path(&self) -> PathBuf {
-        self.pathname.as_path().join("HEAD").to_path_buf()
-    }
-    
-    fn update_head(&self, oid: &str) -> Result<(), std::io::Error> {
-        let mut lock = Lockfile::new(&self.head_path());
-        lock.hold_for_update()?;
-        lock.write(oid)?;
-        lock.write("\n")?;
-        lock.commit()
-    }
-
-    // NOTE: Jumping a bit ahead of the book so that we can have a
-    // `master` branch
-    fn update_master_ref(&self, oid: &str) -> Result<(), std::io::Error> {
-        let master_ref_path = self.pathname.as_path().join("refs/heads/master");
-        fs::create_dir_all(master_ref_path.parent().unwrap())?;
-        
-        let mut lock = Lockfile::new(&master_ref_path);
-        lock.hold_for_update()?;
-        lock.write(oid)?;
-        lock.write("\n")?;
-        lock.commit()
-    }
-
-    fn read_head(&self) -> Option<String> {
-        if self.head_path().as_path().exists() {
-            let mut head_file = File::open(self.head_path()).unwrap();
-            let mut contents = String::new();
-            head_file.read_to_string(&mut contents).unwrap();
-            Some(contents.trim().to_string())
-        } else {
-            None
-        }
-    }
-}
-
-struct Author {
-    name: String,
-    email: String,
-}
-
-impl Author {
-    fn to_string(&self) -> String {
-        format!("{} <{}> {}",
-                self.name,
-                self.email,
-                Utc::now().format("%s %z"))
-    }
-}
-
-struct Commit {
-    parent: Option<String>,
-    tree_oid: String,
-    author: Author,
-    message: String,
-}
-
-impl Commit {
-    fn new(parent: &Option<String>, tree_oid: String, author: Author, message: String) -> Commit {
-        Commit { parent: parent.clone(), tree_oid, author, message}
-    }
-}
-
-impl Object for Commit {
-    fn r#type(&self) -> String {
-        "commit".to_string()
-    }
-
-    fn to_string(&self) -> Vec<u8> {
-        let author_str = self.author.to_string();
-        let mut lines = String::new();
-        lines.push_str(&format!("tree {}\n", self.tree_oid));
-        if let Some(parent_oid) = &self.parent {
-            lines.push_str(&format!("parent {}\n", parent_oid));
-        }
-        lines.push_str(&format!("author {}\n", author_str));
-        lines.push_str(&format!("committer {}\n", author_str));
-        lines.push_str("\n");
-        lines.push_str(&self.message);
-
-        lines.as_bytes().to_vec()
-    }
-}
+mod commit;
+use commit::{Author, Commit};
 
 fn main() -> std::io::Result<()> {
     let args : Vec<String> = env::args().collect();
