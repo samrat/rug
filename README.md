@@ -1,3 +1,4 @@
-## Jit, a Git implementation, in Rust
+## rug, a Git implementation in Rust
 
-This is my implementation of *Jit*, from James Coglan's book *Building Git*.
+This is my implementation of *Jit*, from James Coglan's book *Building
+Git*.

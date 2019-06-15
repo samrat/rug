@@ -1,7 +1,7 @@
 [package]
-name = "jit-rs"
+name = "rug"
 version = "0.1.0"
-authors = ["Samrat Man Singh <samrat@nilenso.com>"]
+authors = ["Samrat Man Singh <samratmansingh@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
