@@ -52,7 +52,7 @@ pub fn init_command<I,O,E>(mut ctx: CommandContext<I,O,E>) -> Result<(), String>
     }
 
     ctx.stdout.write_all(
-        format!("Initialized empty Jit repository in {:?}", git_path).as_bytes()
+        format!("Initialized empty Jit repository in {:?}\n", git_path).as_bytes()
     ).unwrap();
     
     Ok(())
