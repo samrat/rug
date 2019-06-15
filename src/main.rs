@@ -14,21 +14,19 @@ use std::io;
 mod lockfile;
 
 mod database;
-use database::{Object, Blob, Tree, Database, Entry};
+use database::{Object, Blob, Tree, Entry};
 
 mod workspace;
-use workspace::Workspace;
-
 mod index;
-use index::Index;
+mod refs;
 
 mod util;
 
-mod refs;
-use refs::Refs;
-
 mod commit;
 use commit::{Author, Commit};
+
+mod repository;
+use repository::Repository;
 
 fn main() -> std::io::Result<()> {
     let args : Vec<String> = env::args().collect();
@@ -54,21 +52,16 @@ fn main() -> std::io::Result<()> {
         "commit" => {
             let working_dir = env::current_dir()?;
             let root_path = working_dir.as_path();
-            let git_path = root_path.join(".git");
-            let db_path = git_path.join("objects");
+            let mut repo = Repository::new(&root_path.join(".git"));
 
-            let database = Database::new(&db_path);
-            let refs = Refs::new(git_path.as_path());
-            let mut index = Index::new(&git_path.join("index"));
-
-            index.load()?;
-            let entries : Vec<Entry> = index.entries.iter()
+            repo.index.load()?;
+            let entries : Vec<Entry> = repo.index.entries.iter()
                 .map(|(_path, idx_entry)| Entry::from(idx_entry))
                 .collect();
             let root = Tree::build(&entries);
-            root.traverse(&database)?;
+            root.traverse(&repo.database)?;
 
-            let parent = refs.read_head();
+            let parent = repo.refs.read_head();
             let author_name = env::var("GIT_AUTHOR_NAME")
                 .expect("GIT_AUTHOR_NAME not set");
             let author_email = env::var("GIT_AUTHOR_EMAIL")
@@ -81,9 +74,9 @@ fn main() -> std::io::Result<()> {
             io::stdin().read_to_string(&mut commit_message)?;
 
             let commit = Commit::new(&parent, root.get_oid(), author, commit_message);
-            database.store(&commit)?;
-            refs.update_head(&commit.get_oid())?;
-            refs.update_master_ref(&commit.get_oid())?;
+            repo.database.store(&commit)?;
+            repo.refs.update_head(&commit.get_oid())?;
+            repo.refs.update_master_ref(&commit.get_oid())?;
 
             let commit_prefix = if parent.is_some() {
                 ""
@@ -98,14 +91,9 @@ fn main() -> std::io::Result<()> {
         "add" => {
             let working_dir = env::current_dir()?;
             let root_path = working_dir.as_path();
-            let git_path = root_path.join(".git");
-            let db_path = git_path.join("objects");
+            let mut repo = Repository::new(&root_path.join(".git"));
             
-            let workspace = Workspace::new(root_path);
-            let database = Database::new(&db_path);
-            let mut index = Index::new(&git_path.join("index"));
-
-            match index.load_for_update() {
+            match repo.index.load_for_update() {
                 Ok(_) => (),
                 Err(ref e)
                     if e.kind() == io::ErrorKind::AlreadyExists => {
@@ -129,40 +117,40 @@ If it still fails, a jit process may have crashed in this repository earlier: re
                     Ok(path) => path,
                     Err(_) => {
                         eprintln!("fatal: pathspec '{:}' did not match any files", arg);
-                        index.release_lock()?;
+                        repo.index.release_lock()?;
                         std::process::exit(1);
                     },
                 };
 
-                for pathname in workspace.list_files(&path)? {
+                for pathname in repo.workspace.list_files(&path)? {
                     paths.push(pathname);
                 }
             }
 
             for pathname in paths {
-                let data = match workspace.read_file(&pathname) {
+                let data = match repo.workspace.read_file(&pathname) {
                     Ok(data) => data,
                     Err(ref err)
                         if err.kind() == io::ErrorKind::PermissionDenied => {
                         eprintln!("{}", err);
                         eprintln!("fatal: adding files failed");
 
-                        index.release_lock()?;
+                        repo.index.release_lock()?;
                         std::process::exit(128);
                     },
                     _ => {
                         panic!("fatal: adding files failed");
                     },
                 };
-                let stat = workspace.stat_file(&pathname)?;
+                let stat = repo.workspace.stat_file(&pathname)?;
 
                 let blob = Blob::new(data.as_bytes());
-                database.store(&blob)?;
+                repo.database.store(&blob)?;
                 
-                index.add(&pathname, &blob.get_oid(), &stat);
+                repo.index.add(&pathname, &blob.get_oid(), &stat);
             }
 
-            index.write_updates()?;
+            repo.index.write_updates()?;
             
             Ok(())
 
