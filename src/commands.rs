@@ -27,12 +27,15 @@ where
     O: Write,
     E: Write,
 {
+    if ctx.args.len() < 2 {
+        return Err("No command provided\n".to_string());
+    }
     let command = &ctx.args[1];
     match &command[..] {
         "init" => init_command(ctx),
         "commit" => commit_command(ctx),
         "add" => add_command(ctx),
-        _ => Err(format!("invalid command: {}", command)),
+        _ => Err(format!("invalid command: {}\n", command)),
     }
 }
 
