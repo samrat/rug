@@ -389,151 +389,151 @@ impl Index {
     }
 }
 
-#[test]
-fn add_files_to_index() -> Result<(), std::io::Error> {
-    // Add a file to an index and check that it's there
-    use super::*;
-    use crate::repository::Repository;
-    use rand::random;
-
-    let mut temp_dir = generate_temp_name();
-    temp_dir.push_str("_jit_test");
-
-    let root_path = Path::new("/tmp").join(temp_dir);
-    let mut repo = Repository::new(&root_path.join(".git"));
-    fs::create_dir(&root_path)?;
-
-    let oid = encode_hex(&(0..20).map(|_n| random::<u8>()).collect::<Vec<u8>>());
-
-    let f1_filename = "alice.txt";
-    let f1_path = root_path.join(f1_filename);
-    File::create(&f1_path)?.write(b"file 1")?;
-    let stat = repo.workspace.stat_file(f1_filename)?;
-
-    {
-        repo.index.clear();
-        repo.index.add(f1_filename, &oid, &stat);
-
-        let index_entry_paths: Vec<&String> =
-            repo.index.entries.iter().map(|(path, _)| path).collect();
-
-        assert_eq!(vec![f1_filename], index_entry_paths);
-    }
-
-    // Replace file with directory
-    {
-        repo.index.clear();
-        repo.index.add("alice.txt", &oid, &stat);
-        repo.index.add("alice.txt/nested.txt", &oid, &stat);
-        repo.index.add("bob.txt", &oid, &stat);
-        let index_entry_paths: Vec<&String> =
-            repo.index.entries.iter().map(|(path, _)| path).collect();
-
-        assert_eq!(vec!["alice.txt/nested.txt", "bob.txt"], index_entry_paths);
-    }
-
-    // Replace directory with file
-    {
-        repo.index.clear();
-        repo.index.add("alice.txt", &oid, &stat);
-        repo.index.add("nested/bob.txt", &oid, &stat);
-
-        repo.index.add("nested", &oid, &stat);
-
-        let index_entry_paths: Vec<&String> =
-            repo.index.entries.iter().map(|(path, _)| path).collect();
-
-        assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
-    }
-
-    // Replace directory(with subdirectories) with file
-    {
-        repo.index.clear();
-        repo.index.add("alice.txt", &oid, &stat);
-        repo.index.add("nested/bob.txt", &oid, &stat);
-        repo.index.add("nested/inner/claire.txt", &oid, &stat);
-
-        repo.index.add("nested", &oid, &stat);
-
-        let index_entry_paths: Vec<&String> =
-            repo.index.entries.iter().map(|(path, _)| path).collect();
-
-        assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
-    }
-
-    // Cleanup
-    fs::remove_dir_all(&root_path)?;
-
-    Ok(())
-}
-
-#[test]
-fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
-    // Create index file, using "stock" git and our implementation and
-    // check that they are byte-for-byte equal
-
+#[cfg(test)]
+mod tests {
     use super::*;
     use crate::database::{Blob, Object};
     use crate::repository::Repository;
+    use rand::random;
     use std::process::Command;
 
-    let mut temp_dir = generate_temp_name();
-    temp_dir.push_str("_jit_test");
+    #[test]
+    fn add_files_to_index() -> Result<(), std::io::Error> {
+        // Add a file to an index and check that it's there
+        let mut temp_dir = generate_temp_name();
+        temp_dir.push_str("_jit_test");
 
-    let root_path = Path::new("/tmp").join(temp_dir);
-    let mut repo = Repository::new(&root_path.join(".git"));
-    fs::create_dir(&root_path)?;
+        let root_path = Path::new("/tmp").join(temp_dir);
+        let mut repo = Repository::new(&root_path.join(".git"));
+        fs::create_dir(&root_path)?;
 
-    let git_path = root_path.join(".git");
-    fs::create_dir(&git_path)?;
+        let oid = encode_hex(&(0..20).map(|_n| random::<u8>()).collect::<Vec<u8>>());
 
-    repo.index.load_for_update()?;
+        let f1_filename = "alice.txt";
+        let f1_path = root_path.join(f1_filename);
+        File::create(&f1_path)?.write(b"file 1")?;
+        let stat = repo.workspace.stat_file(f1_filename)?;
 
-    // Create some files
-    File::create(root_path.join("f1.txt"))?.write(b"file 1")?;
-    File::create(root_path.join("f2.txt"))?.write(b"file 2")?;
+        {
+            repo.index.clear();
+            repo.index.add(f1_filename, &oid, &stat);
 
-    // Create an index out of those files
-    for pathname in repo.workspace.list_files(&root_path)? {
-        let data = repo.workspace.read_file(&pathname)?;
-        let stat = repo.workspace.stat_file(&pathname)?;
+            let index_entry_paths: Vec<&String> =
+                repo.index.entries.iter().map(|(path, _)| path).collect();
 
-        let blob = Blob::new(data.as_bytes());
-        repo.database.store(&blob)?;
+            assert_eq!(vec![f1_filename], index_entry_paths);
+        }
 
-        repo.index.add(&pathname, &blob.get_oid(), &stat);
+        // Replace file with directory
+        {
+            repo.index.clear();
+            repo.index.add("alice.txt", &oid, &stat);
+            repo.index.add("alice.txt/nested.txt", &oid, &stat);
+            repo.index.add("bob.txt", &oid, &stat);
+            let index_entry_paths: Vec<&String> =
+                repo.index.entries.iter().map(|(path, _)| path).collect();
+
+            assert_eq!(vec!["alice.txt/nested.txt", "bob.txt"], index_entry_paths);
+        }
+
+        // Replace directory with file
+        {
+            repo.index.clear();
+            repo.index.add("alice.txt", &oid, &stat);
+            repo.index.add("nested/bob.txt", &oid, &stat);
+
+            repo.index.add("nested", &oid, &stat);
+
+            let index_entry_paths: Vec<&String> =
+                repo.index.entries.iter().map(|(path, _)| path).collect();
+
+            assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
+        }
+
+        // Replace directory(with subdirectories) with file
+        {
+            repo.index.clear();
+            repo.index.add("alice.txt", &oid, &stat);
+            repo.index.add("nested/bob.txt", &oid, &stat);
+            repo.index.add("nested/inner/claire.txt", &oid, &stat);
+
+            repo.index.add("nested", &oid, &stat);
+
+            let index_entry_paths: Vec<&String> =
+                repo.index.entries.iter().map(|(path, _)| path).collect();
+
+            assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
+        }
+
+        // Cleanup
+        fs::remove_dir_all(&root_path)?;
+
+        Ok(())
     }
 
-    repo.index.write_updates()?;
+    #[test]
+    fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
+        // Create index file, using "stock" git and our implementation and
+        // check that they are byte-for-byte equal
 
-    // Store contents of our index file
-    let mut our_index = File::open(&git_path.join("index"))?;
-    let mut our_index_contents = Vec::new();
-    our_index.read_to_end(&mut our_index_contents)?;
+        let mut temp_dir = generate_temp_name();
+        temp_dir.push_str("_jit_test");
 
-    // Remove .git dir that we created
-    fs::remove_dir_all(&git_path)?;
+        let root_path = Path::new("/tmp").join(temp_dir);
+        let mut repo = Repository::new(&root_path.join(".git"));
+        fs::create_dir(&root_path)?;
 
-    // Create index using "stock" git
-    let _git_init_output = Command::new("git")
-        .current_dir(&root_path)
-        .arg("init")
-        .arg(".")
-        .output();
-    let _git_output = Command::new("git")
-        .current_dir(&root_path)
-        .arg("add")
-        .arg(".")
-        .output();
+        let git_path = root_path.join(".git");
+        fs::create_dir(&git_path)?;
 
-    let mut git_index = File::open(&git_path.join("index"))?;
-    let mut git_index_contents = Vec::new();
-    git_index.read_to_end(&mut git_index_contents)?;
+        repo.index.load_for_update()?;
 
-    assert_eq!(our_index_contents, git_index_contents);
+        // Create some files
+        File::create(root_path.join("f1.txt"))?.write(b"file 1")?;
+        File::create(root_path.join("f2.txt"))?.write(b"file 2")?;
 
-    // Cleanup
-    fs::remove_dir_all(&root_path)?;
+        // Create an index out of those files
+        for pathname in repo.workspace.list_files(&root_path)? {
+            let data = repo.workspace.read_file(&pathname)?;
+            let stat = repo.workspace.stat_file(&pathname)?;
 
-    Ok(())
+            let blob = Blob::new(data.as_bytes());
+            repo.database.store(&blob)?;
+
+            repo.index.add(&pathname, &blob.get_oid(), &stat);
+        }
+
+        repo.index.write_updates()?;
+
+        // Store contents of our index file
+        let mut our_index = File::open(&git_path.join("index"))?;
+        let mut our_index_contents = Vec::new();
+        our_index.read_to_end(&mut our_index_contents)?;
+
+        // Remove .git dir that we created
+        fs::remove_dir_all(&git_path)?;
+
+        // Create index using "stock" git
+        let _git_init_output = Command::new("git")
+            .current_dir(&root_path)
+            .arg("init")
+            .arg(".")
+            .output();
+        let _git_output = Command::new("git")
+            .current_dir(&root_path)
+            .arg("add")
+            .arg(".")
+            .output();
+
+        let mut git_index = File::open(&git_path.join("index"))?;
+        let mut git_index_contents = Vec::new();
+        git_index.read_to_end(&mut git_index_contents)?;
+
+        assert_eq!(our_index_contents, git_index_contents);
+
+        // Cleanup
+        fs::remove_dir_all(&root_path)?;
+
+        Ok(())
+    }
 }
