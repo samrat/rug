@@ -9,10 +9,12 @@ pub struct Author {
 
 impl Author {
     fn to_string(&self) -> String {
-        format!("{} <{}> {}",
-                self.name,
-                self.email,
-                Utc::now().format("%s %z"))
+        format!(
+            "{} <{}> {}",
+            self.name,
+            self.email,
+            Utc::now().format("%s %z")
+        )
     }
 }
 
@@ -24,8 +26,18 @@ pub struct Commit {
 }
 
 impl Commit {
-    pub fn new(parent: &Option<String>, tree_oid: String, author: Author, message: String) -> Commit {
-        Commit { parent: parent.clone(), tree_oid, author, message}
+    pub fn new(
+        parent: &Option<String>,
+        tree_oid: String,
+        author: Author,
+        message: String,
+    ) -> Commit {
+        Commit {
+            parent: parent.clone(),
+            tree_oid,
+            author,
+            message,
+        }
     }
 }
 

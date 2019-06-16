@@ -1,7 +1,7 @@
 use std::fs::{self, File, OpenOptions};
-use std::path::{Path, PathBuf};
-use std::io::{self, ErrorKind};
 use std::io::prelude::*;
+use std::io::{self, ErrorKind};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct Lockfile {
@@ -26,7 +26,7 @@ impl Lockfile {
                 .write(true)
                 .create_new(true)
                 .open(&self.lock_path)?;
-            
+
             self.lock = Some(open_file);
         }
 
@@ -46,7 +46,6 @@ impl Lockfile {
         Ok(())
     }
 
-
     pub fn commit(&mut self) -> Result<(), std::io::Error> {
         self.raise_on_stale_lock()?;
         self.lock = None;
@@ -65,8 +64,10 @@ impl Lockfile {
 
     fn raise_on_stale_lock(&self) -> Result<(), std::io::Error> {
         if self.lock.is_none() {
-            Err(io::Error::new(ErrorKind::Other,
-                               format!("Not holding lock on file: {:?}", self.lock_path)))
+            Err(io::Error::new(
+                ErrorKind::Other,
+                format!("Not holding lock on file: {:?}", self.lock_path),
+            ))
         } else {
             Ok(())
         }

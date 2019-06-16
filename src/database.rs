@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::io::prelude::*;
 use std::fs::{self, OpenOptions};
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
 
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 
-use flate2::Compression;
 use flate2::write::ZlibEncoder;
+use flate2::Compression;
 
-use crate::util::*;
 use crate::index;
+use crate::util::*;
 
 pub trait Object {
     fn r#type(&self) -> String;
@@ -25,8 +25,8 @@ pub trait Object {
     fn get_content(&self) -> Vec<u8> {
         // TODO: need to do something to force ASCII encoding?
         let string = self.to_string();
-        let mut content : Vec<u8> = self.r#type().as_bytes().to_vec();
-        
+        let mut content: Vec<u8> = self.r#type().as_bytes().to_vec();
+
         content.push(0x20);
         content.extend_from_slice(format!("{}", string.len()).as_bytes());
         content.push(0x0);
@@ -42,9 +42,10 @@ pub struct Blob {
 
 impl Blob {
     pub fn new(data: &[u8]) -> Blob {
-        Blob { data: data.to_vec() }
+        Blob {
+            data: data.to_vec(),
+        }
     }
-
 }
 
 impl Object for Blob {
@@ -86,7 +87,9 @@ pub struct Tree {
 
 impl Tree {
     pub fn new() -> Tree {
-        Tree { entries: BTreeMap::new() }
+        Tree {
+            entries: BTreeMap::new(),
+        }
     }
 
     pub fn build(entries: &[Entry]) -> Tree {
@@ -95,7 +98,7 @@ impl Tree {
 
         let mut root = Tree::new();
         for entry in sorted_entries.iter() {
-            let mut path : Vec<String> = Path::new(&entry.name)
+            let mut path: Vec<String> = Path::new(&entry.name)
                 .iter()
                 .map(|c| c.to_str().unwrap().to_string())
                 .collect();
@@ -114,9 +117,7 @@ impl Tree {
         } else {
             let mut tree = Tree::new();
             tree.add_entry(&path[1..], name, entry);
-            self.entries.insert(path[0].clone(),
-                                TreeEntry::Tree(tree));
-
+            self.entries.insert(path[0].clone(), TreeEntry::Tree(tree));
         };
     }
 
@@ -141,13 +142,11 @@ impl Object for Tree {
     fn r#type(&self) -> String {
         "tree".to_string()
     }
-    
+
     fn to_string(&self) -> Vec<u8> {
         let mut tree_vec = Vec::new();
         for (name, entry) in self.entries.iter() {
-            let mut entry_vec : Vec<u8> = format!("{} {}\0",
-                                                  entry.mode(),
-                                                  name).as_bytes().to_vec();
+            let mut entry_vec: Vec<u8> = format!("{} {}\0", entry.mode(), name).as_bytes().to_vec();
             entry_vec.extend_from_slice(&decode_hex(&entry.get_oid()).expect("invalid oid"));
             tree_vec.extend_from_slice(&entry_vec);
         }
@@ -174,9 +173,11 @@ impl From<&index::Entry> for Entry {
 
 impl Entry {
     pub fn new(name: &str, oid: &str, mode: u32) -> Entry {
-        Entry { name: name.to_string(),
-                oid: oid.to_string(),
-                mode,}
+        Entry {
+            name: name.to_string(),
+            oid: oid.to_string(),
+            mode,
+        }
     }
 
     // if user is allowed to executable, set mode to Executable,
@@ -200,11 +201,15 @@ pub struct Database {
 
 impl Database {
     pub fn new(path: &Path) -> Database {
-        Database { path: path.to_path_buf() }
+        Database {
+            path: path.to_path_buf(),
+        }
     }
 
     pub fn store<T>(&self, obj: &T) -> Result<(), std::io::Error>
-    where T: Object {
+    where
+        T: Object,
+    {
         let oid = obj.get_oid();
         let content = obj.get_content();
 
@@ -212,14 +217,14 @@ impl Database {
     }
 
     fn write_object(&self, oid: String, content: Vec<u8>) -> Result<(), std::io::Error> {
-        let dir : &str = &oid[0..2];
-        let filename : &str = &oid[2..];
+        let dir: &str = &oid[0..2];
+        let filename: &str = &oid[2..];
         let object_path = self.path.as_path().join(dir).join(filename);
 
         // If object already exists, we are certain that the contents
         // have not changed. So there is no need to write it again.
         if object_path.exists() {
-            return Ok(())
+            return Ok(());
         }
 
         let dir_path = object_path.parent().expect("invalid parent path");

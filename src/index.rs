@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
-use std::fs::{self, File, OpenOptions};
-use std::os::unix::fs::MetadataExt;
-use std::cmp;
-use std::str;
-use std::collections::{HashMap, BTreeMap, HashSet};
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
-use std::io::{self, ErrorKind, Read, Write};
+use std::cmp;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, ErrorKind, Read, Write};
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::str;
 
 use crate::lockfile::Lockfile;
 use crate::util::*;
@@ -15,7 +15,7 @@ use crate::util::*;
 const MAX_PATH_SIZE: u16 = 0xfff;
 const CHECKSUM_SIZE: u64 = 20;
 
-const HEADER_SIZE: usize = 12;  // bytes
+const HEADER_SIZE: usize = 12; // bytes
 const MIN_ENTRY_SIZE: usize = 64;
 
 #[derive(Debug, Clone)]
@@ -68,21 +68,17 @@ impl Entry {
     }
 
     fn parse(bytes: &[u8]) -> Result<Entry, std::io::Error> {
-        let mut metadata_ints : Vec<u32> = vec![];
+        let mut metadata_ints: Vec<u32> = vec![];
         for i in 0..10 {
-            metadata_ints.push(
-                u32::from_be_bytes(bytes[i*4 .. i*4 + 4]
-                                   .try_into().unwrap())
-            );
-        };
+            metadata_ints.push(u32::from_be_bytes(
+                bytes[i * 4..i * 4 + 4].try_into().unwrap(),
+            ));
+        }
 
         let oid = encode_hex(&bytes[40..60]);
-        let flags = u16::from_be_bytes(bytes[60..62]
-                                       .try_into().unwrap());
-        let path_bytes = bytes[62..].split(|b| b == &0u8)
-            .next().unwrap();
-        let path = str::from_utf8(path_bytes)
-            .unwrap().to_string();
+        let flags = u16::from_be_bytes(bytes[60..62].try_into().unwrap());
+        let path_bytes = bytes[62..].split(|b| b == &0u8).next().unwrap();
+        let path = str::from_utf8(path_bytes).unwrap().to_string();
 
         Ok(Entry {
             ctime: i64::from(metadata_ints[0]),
@@ -98,7 +94,7 @@ impl Entry {
 
             oid,
             flags,
-            path
+            path,
         })
     }
 
@@ -135,28 +131,34 @@ impl Entry {
 
     fn parent_dirs(&self) -> Vec<&str> {
         let path = Path::new(&self.path);
-        let mut parent_dirs : Vec<_> = path.ancestors()
+        let mut parent_dirs: Vec<_> = path
+            .ancestors()
             .map(|d| d.to_str().expect("invalid filename"))
             .collect();
-        parent_dirs.pop();       // drop root dir(always "")
+        parent_dirs.pop(); // drop root dir(always "")
         parent_dirs.reverse();
-        parent_dirs.pop();      // drop filename
+        parent_dirs.pop(); // drop filename
 
         parent_dirs
     }
 }
 
 pub struct Checksum<T>
-where T : Read + Write {
+where
+    T: Read + Write,
+{
     file: T,
     digest: Sha1,
 }
 
 impl<T> Checksum<T>
-where T: Read + Write {
+where
+    T: Read + Write,
+{
     fn new(file: T) -> Checksum<T> {
-        Checksum { file,
-                   digest: Sha1::new(),
+        Checksum {
+            file,
+            digest: Sha1::new(),
         }
     }
 
@@ -176,8 +178,8 @@ where T: Read + Write {
     }
 
     fn write_checksum(&mut self) -> Result<(), std::io::Error> {
-        self.file.write_all(&decode_hex(&self.digest.result_str())
-                            .unwrap())?;
+        self.file
+            .write_all(&decode_hex(&self.digest.result_str()).unwrap())?;
 
         Ok(())
     }
@@ -191,13 +193,14 @@ where T: Read + Write {
         let sum = encode_hex(&buf);
 
         if sum != hash {
-            return Err(io::Error::new(ErrorKind::Other,
-                                      "Checksum does not match value stored on disk"));
+            return Err(io::Error::new(
+                ErrorKind::Other,
+                "Checksum does not match value stored on disk",
+            ));
         }
 
         Ok(())
     }
-
 }
 
 pub struct Index {
@@ -211,12 +214,13 @@ pub struct Index {
 
 impl Index {
     pub fn new(path: &Path) -> Index {
-        Index { pathname: path.to_path_buf(),
-                entries: BTreeMap::new(),
-                parents: HashMap::new(),
-                lockfile: Lockfile::new(path),
-                hasher: None,
-                changed: false,
+        Index {
+            pathname: path.to_path_buf(),
+            entries: BTreeMap::new(),
+            parents: HashMap::new(),
+            lockfile: Lockfile::new(path),
+            hasher: None,
+            changed: false,
         }
     }
 
@@ -226,9 +230,9 @@ impl Index {
         }
 
         let mut lock = self.lockfile;
-        let mut writer : Checksum<&Lockfile> = Checksum::new(&lock);
+        let mut writer: Checksum<&Lockfile> = Checksum::new(&lock);
 
-        let mut header_bytes : Vec<u8> = vec![];
+        let mut header_bytes: Vec<u8> = vec![];
         header_bytes.extend_from_slice(b"DIRC");
         header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
@@ -261,7 +265,6 @@ impl Index {
         for child in to_remove {
             self.remove_entry(&child);
         }
-
     }
 
     fn remove_entry(&mut self, pathname: &str) {
@@ -334,29 +337,29 @@ impl Index {
     }
 
     fn read_header(checksum: &mut Checksum<File>) -> usize {
-        let data = checksum.read(HEADER_SIZE)
+        let data = checksum
+            .read(HEADER_SIZE)
             .expect("could not read checksum header");
-        let signature = str::from_utf8(&data[0..4])
-            .expect("invalid signature");
-        let version = u32::from_be_bytes(data[4..8]
-                                         .try_into().unwrap());
-        let count = u32::from_be_bytes(data[8..12]
-                                       .try_into().unwrap());
+        let signature = str::from_utf8(&data[0..4]).expect("invalid signature");
+        let version = u32::from_be_bytes(data[4..8].try_into().unwrap());
+        let count = u32::from_be_bytes(data[8..12].try_into().unwrap());
 
         if signature != "DIRC" {
-            panic!("Signature: expected 'DIRC', but found {}",
-                   signature);
+            panic!("Signature: expected 'DIRC', but found {}", signature);
         }
 
         if version != 2 {
-            panic!("Version: expected '2', but found {}",
-                   version);
+            panic!("Version: expected '2', but found {}", version);
         }
 
         count as usize
     }
 
-    fn read_entries(&mut self, checksum: &mut Checksum<File>, count: usize) -> Result<(), std::io::Error> {
+    fn read_entries(
+        &mut self,
+        checksum: &mut Checksum<File>,
+        count: usize,
+    ) -> Result<(), std::io::Error> {
         for _i in 0..count {
             let mut entry = checksum.read(MIN_ENTRY_SIZE)?;
             while entry.last().unwrap() != &0u8 {
@@ -390,8 +393,8 @@ impl Index {
 fn add_files_to_index() -> Result<(), std::io::Error> {
     // Add a file to an index and check that it's there
     use super::*;
-    use rand::random;
     use crate::repository::Repository;
+    use rand::random;
 
     let mut temp_dir = generate_temp_name();
     temp_dir.push_str("_jit_test");
@@ -400,24 +403,19 @@ fn add_files_to_index() -> Result<(), std::io::Error> {
     let mut repo = Repository::new(&root_path.join(".git"));
     fs::create_dir(&root_path)?;
 
-    let oid = encode_hex(&(0..20)
-                         .map(|_n| random::<u8>())
-                         .collect::<Vec<u8>>());
+    let oid = encode_hex(&(0..20).map(|_n| random::<u8>()).collect::<Vec<u8>>());
 
     let f1_filename = "alice.txt";
     let f1_path = root_path.join(f1_filename);
-    File::create(&f1_path)?
-        .write(b"file 1")?;
+    File::create(&f1_path)?.write(b"file 1")?;
     let stat = repo.workspace.stat_file(f1_filename)?;
 
     {
         repo.index.clear();
         repo.index.add(f1_filename, &oid, &stat);
 
-        let index_entry_paths : Vec<&String> = repo.index.entries
-            .iter()
-            .map(|(path, _)| path)
-            .collect();
+        let index_entry_paths: Vec<&String> =
+            repo.index.entries.iter().map(|(path, _)| path).collect();
 
         assert_eq!(vec![f1_filename], index_entry_paths);
     }
@@ -428,13 +426,10 @@ fn add_files_to_index() -> Result<(), std::io::Error> {
         repo.index.add("alice.txt", &oid, &stat);
         repo.index.add("alice.txt/nested.txt", &oid, &stat);
         repo.index.add("bob.txt", &oid, &stat);
-        let index_entry_paths : Vec<&String> = repo.index.entries
-            .iter()
-            .map(|(path, _)| path)
-            .collect();
+        let index_entry_paths: Vec<&String> =
+            repo.index.entries.iter().map(|(path, _)| path).collect();
 
-        assert_eq!(vec!["alice.txt/nested.txt", "bob.txt"],
-                   index_entry_paths);
+        assert_eq!(vec!["alice.txt/nested.txt", "bob.txt"], index_entry_paths);
     }
 
     // Replace directory with file
@@ -445,13 +440,10 @@ fn add_files_to_index() -> Result<(), std::io::Error> {
 
         repo.index.add("nested", &oid, &stat);
 
-        let index_entry_paths : Vec<&String> = repo.index.entries
-            .iter()
-            .map(|(path, _)| path)
-            .collect();
+        let index_entry_paths: Vec<&String> =
+            repo.index.entries.iter().map(|(path, _)| path).collect();
 
-        assert_eq!(vec!["alice.txt", "nested"],
-                   index_entry_paths);
+        assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
     }
 
     // Replace directory(with subdirectories) with file
@@ -463,13 +455,10 @@ fn add_files_to_index() -> Result<(), std::io::Error> {
 
         repo.index.add("nested", &oid, &stat);
 
-        let index_entry_paths : Vec<&String> = repo.index.entries
-            .iter()
-            .map(|(path, _)| path)
-            .collect();
+        let index_entry_paths: Vec<&String> =
+            repo.index.entries.iter().map(|(path, _)| path).collect();
 
-        assert_eq!(vec!["alice.txt", "nested"],
-                   index_entry_paths);
+        assert_eq!(vec!["alice.txt", "nested"], index_entry_paths);
     }
 
     // Cleanup
@@ -484,9 +473,9 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     // check that they are byte-for-byte equal
 
     use super::*;
-    use std::process::Command;
     use crate::database::{Blob, Object};
     use crate::repository::Repository;
+    use std::process::Command;
 
     let mut temp_dir = generate_temp_name();
     temp_dir.push_str("_jit_test");
@@ -501,10 +490,8 @@ fn emit_index_file_same_as_stock_git() -> Result<(), std::io::Error> {
     repo.index.load_for_update()?;
 
     // Create some files
-    File::create(root_path.join("f1.txt"))?
-        .write(b"file 1")?;
-    File::create(root_path.join("f2.txt"))?
-        .write(b"file 2")?;
+    File::create(root_path.join("f1.txt"))?.write(b"file 1")?;
+    File::create(root_path.join("f2.txt"))?.write(b"file 2")?;
 
     // Create an index out of those files
     for pathname in repo.workspace.list_files(&root_path)? {

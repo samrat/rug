@@ -1,4 +1,4 @@
-use std::path::{Path};
+use std::path::Path;
 
 use crate::database::Database;
 use crate::index::Index;

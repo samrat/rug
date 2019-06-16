@@ -1,7 +1,7 @@
-use std::num::ParseIntError;
-use std::fmt::Write;
-use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::fmt::Write;
+use std::num::ParseIntError;
 
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -19,8 +19,5 @@ pub fn encode_hex(bytes: &[u8]) -> String {
 }
 
 pub fn generate_temp_name() -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(6)
-        .collect()
+    thread_rng().sample_iter(&Alphanumeric).take(6).collect()
 }
