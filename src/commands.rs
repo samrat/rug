@@ -307,4 +307,58 @@ mod tests {
         assert_index(&repo_path, vec![(0o100755, "hello.txt".to_string())]);
         fs::remove_dir_all(repo_path);
     }
+
+    #[test]
+    fn add_multiple_files_to_index() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        write_file(&repo_path, "world.txt", "world".as_bytes());
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt", "world.txt"]);
+
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string()),
+                                      (0o100644, "world.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
+    }
+
+    #[test]
+    fn incrementally_add_files_to_index() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        write_file(&repo_path, "world.txt", "world".as_bytes());
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
+
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())]);
+
+        jit_cmd(&repo_path, vec!["", "add", "world.txt"]);
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string()),
+                                      (0o100644, "world.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
+    }
+
+    #[test]
+    fn add_a_directory_to_index() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "a-dir/nested.txt", "hello".as_bytes());
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+
+        jit_cmd(&repo_path, vec!["", "add", "a-dir"]);
+        assert_index(&repo_path, vec![(0o100644, "a-dir/nested.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
+    }
+
+    #[test]
+    fn add_repository_root_to_index() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "a/b/c/hello.txt", "hello".as_bytes());
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "add", "."]);
+
+        assert_index(&repo_path, vec![(0o100644, "a/b/c/hello.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
+    }
 }
