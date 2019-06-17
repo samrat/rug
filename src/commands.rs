@@ -154,8 +154,8 @@ If it still fails, a jit process may have crashed in this repository earlier: re
 
     let mut paths = vec![];
     for arg in &ctx.args[2..] {
-        let path = match Path::new(arg).canonicalize() {
-            Ok(path) => path,
+        let path = match working_dir.join(arg).canonicalize() {
+            Ok(canon_path) => canon_path,
             Err(_) => {
                 repo.index.release_lock().unwrap();
                 return Err(format!(
@@ -202,4 +202,68 @@ fatal: adding files failed\n",
         .expect("writing updates to index failed");
 
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, OpenOptions};
+    use std::io::Cursor;
+
+    static REPO_PATH : &'static str = "/private/tmp/rug-test-repo";
+
+    fn repo() -> Repository {
+        Repository::new(&Path::new(REPO_PATH).join(".git"))
+    }
+
+    fn write_file(file_name: &str, contents: &[u8]) -> Result<(), std::io::Error> {
+        let path = Path::new(REPO_PATH).join(file_name);
+        fs::create_dir_all(path.parent().unwrap());
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .truncate(true)
+            .open(&path)?;
+        file.write_all(contents)?;
+
+        Ok(())
+    }
+
+    fn assert_index(expected: Vec<(u32, String)>) {
+        let mut repo = repo();
+        repo.index.load();
+
+        let actual :Vec<(u32, String)> =
+            repo.index.entries.iter()
+            .map(|(_, entry)| (entry.mode, entry.path.clone())).collect();
+
+        assert_eq!(expected, actual);
+    }
+
+    fn jit_cmd(args: Vec<&str>) {
+        let stdin = String::new();
+        let mut stdout = Cursor::new(vec![]);
+        let mut stderr = Cursor::new(vec![]);
+
+        let ctx = CommandContext {
+            dir: Path::new(REPO_PATH).to_path_buf(),
+            env: HashMap::new(),
+            args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
+            stdin: stdin.as_bytes(),
+            stdout: stdout,
+            stderr: stderr,
+        };
+
+        execute(ctx);
+    }
+
+    #[test]
+    fn add_regular_file_to_index() {
+        write_file("hello.txt", "hello".as_bytes());
+        jit_cmd(vec!["", "init", REPO_PATH]);
+        jit_cmd(vec!["", "add", "hello.txt"]);
+        assert_index(vec![(0o100644, "hello.txt".to_string())]);
+    }
 }
