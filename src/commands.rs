@@ -254,6 +254,17 @@ mod tests {
         Ok(())
     }
 
+    fn make_unreadable(repo_path: &Path, file_name: &str) -> Result<(), std::io::Error> {
+        let path = repo_path.join(file_name);
+        let file = File::open(&path)?;
+        let metadata = file.metadata()?;
+        let mut permissions = metadata.permissions();
+
+        permissions.set_mode(0o044);
+        fs::set_permissions(path, permissions);
+        Ok(())
+    }
+
     fn assert_index(repo_path: &Path, expected: Vec<(u32, String)>) {
         let mut repo = repo(repo_path);
         repo.index.load();
@@ -265,7 +276,7 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
-    fn jit_cmd(repo_path: &Path, args: Vec<&str>) {
+    fn jit_cmd(repo_path: &Path, args: Vec<&str>) -> Result<(), String> {
         let stdin = String::new();
         let mut stdout = Cursor::new(vec![]);
         let mut stderr = Cursor::new(vec![]);
@@ -279,7 +290,7 @@ mod tests {
             stderr,
         };
 
-        execute(ctx);
+        execute(ctx)
     }
 
     #[test]
@@ -361,4 +372,33 @@ mod tests {
         assert_index(&repo_path, vec![(0o100644, "a/b/c/hello.txt".to_string())]);
         fs::remove_dir_all(repo_path);
     }
+
+    #[test]
+    fn add_fails_for_non_existent_files() {
+        let repo_path = gen_repo_path();
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
+    }
+
+    #[test]
+    fn add_fails_for_unreadable_files() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        make_unreadable(&repo_path, "hello.txt");
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
+    }
+
+    #[test]
+    fn add_fails_if_index_is_locked() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        write_file(&repo_path, ".git/index.lock", "hello".as_bytes());
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
+    }
+
 }
