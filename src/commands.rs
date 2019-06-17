@@ -208,17 +208,29 @@ fatal: adding files failed\n",
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, OpenOptions};
+    use std::fs::{self, File, OpenOptions};
     use std::io::Cursor;
+    use std::os::unix::fs::PermissionsExt;
+    use std::env;
+    use crate::util::*;
 
-    static REPO_PATH : &'static str = "/private/tmp/rug-test-repo";
-
-    fn repo() -> Repository {
-        Repository::new(&Path::new(REPO_PATH).join(".git"))
+    fn gen_repo_path() -> PathBuf {
+        let mut temp_dir = generate_temp_name();
+        temp_dir.push_str("_rug_test");
+        let repo_path = env::temp_dir()
+            .canonicalize()
+            .expect("canonicalization failed")
+            .join(temp_dir);
+        repo_path.to_path_buf()
     }
 
-    fn write_file(file_name: &str, contents: &[u8]) -> Result<(), std::io::Error> {
-        let path = Path::new(REPO_PATH).join(file_name);
+    fn repo(repo_path: &Path) -> Repository {
+        Repository::new(&repo_path.join(".git"))
+    }
+
+    fn write_file(repo_path: &Path, file_name: &str, contents: &[u8]) ->
+        Result<(), std::io::Error> {
+        let path = Path::new(repo_path).join(file_name);
         fs::create_dir_all(path.parent().unwrap());
         let mut file = OpenOptions::new()
             .read(true)
@@ -231,8 +243,19 @@ mod tests {
         Ok(())
     }
 
-    fn assert_index(expected: Vec<(u32, String)>) {
-        let mut repo = repo();
+    fn make_executable(repo_path: &Path, file_name: &str) -> Result<(), std::io::Error> {
+        let path = repo_path.join(file_name);
+        let file = File::open(&path)?;
+        let metadata = file.metadata()?;
+        let mut permissions = metadata.permissions();
+
+        permissions.set_mode(0o744);
+        fs::set_permissions(path, permissions);
+        Ok(())
+    }
+
+    fn assert_index(repo_path: &Path, expected: Vec<(u32, String)>) {
+        let mut repo = repo(repo_path);
         repo.index.load();
 
         let actual :Vec<(u32, String)> =
@@ -242,18 +265,18 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
-    fn jit_cmd(args: Vec<&str>) {
+    fn jit_cmd(repo_path: &Path, args: Vec<&str>) {
         let stdin = String::new();
         let mut stdout = Cursor::new(vec![]);
         let mut stderr = Cursor::new(vec![]);
 
         let ctx = CommandContext {
-            dir: Path::new(REPO_PATH).to_path_buf(),
+            dir: Path::new(repo_path).to_path_buf(),
             env: HashMap::new(),
             args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
             stdin: stdin.as_bytes(),
-            stdout: stdout,
-            stderr: stderr,
+            stdout,
+            stderr,
         };
 
         execute(ctx);
@@ -261,9 +284,27 @@ mod tests {
 
     #[test]
     fn add_regular_file_to_index() {
-        write_file("hello.txt", "hello".as_bytes());
-        jit_cmd(vec!["", "init", REPO_PATH]);
-        jit_cmd(vec!["", "add", "hello.txt"]);
-        assert_index(vec![(0o100644, "hello.txt".to_string())]);
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
+    }
+
+    #[test]
+    fn add_executable_file_to_index() {
+        let repo_path = gen_repo_path();
+        write_file(&repo_path, "hello.txt", "hello".as_bytes());
+        make_executable(&repo_path, "hello.txt");
+        let path = repo_path.join("hello.txt");
+        let file = File::open(path).unwrap();
+        let metadata = file.metadata().unwrap();
+        let mut permissions = metadata.permissions();
+
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
+        assert_index(&repo_path, vec![(0o100755, "hello.txt".to_string())]);
+        fs::remove_dir_all(repo_path);
     }
 }
