@@ -7,6 +7,8 @@ use crate::commit::{Author, Commit};
 use crate::database::{Blob, Entry, Object, Tree};
 use crate::repository::Repository;
 
+static INDEX_LOAD_OR_CREATE_FAILED: &'static str = "fatal: could not create/load .git/index\n";
+
 pub struct CommandContext<I, O, E>
 where
     I: Read,
@@ -125,6 +127,48 @@ where
     Ok(())
 }
 
+fn locked_index_message(e: &std::io::Error) -> String {
+    format!("fatal: {}
+
+Another jit process seems to be running in this repository. Please make sure all processes are terminated then try again.
+
+If it still fails, a jit process may have crashed in this repository earlier: remove the .git/index.lock file manually to continue.\n",
+            e)
+}
+
+fn add_failed_message(e: &std::io::Error) -> String {
+    format!(
+        "{}
+
+fatal: adding files failed\n",
+        e
+    )
+}
+
+fn add_to_index(repo: &mut Repository, pathname: &str) -> Result<(), String> {
+    let data = match repo.workspace.read_file(&pathname) {
+        Ok(data) => data,
+        Err(ref err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            repo.index.release_lock().unwrap();
+            return Err(add_failed_message(&err));
+        }
+        _ => {
+            panic!("fatal: adding files failed");
+        }
+    };
+
+    let stat = repo
+        .workspace
+        .stat_file(&pathname)
+        .expect("could not stat file");
+    let blob = Blob::new(data.as_bytes());
+    repo.database.store(&blob).expect("storing blob failed");
+
+    repo.index.add(&pathname, &blob.get_oid(), &stat);
+
+    Ok(())
+}
+
 pub fn add_command<I, O, E>(ctx: CommandContext<I, O, E>) -> Result<(), String>
 where
     I: Read,
@@ -138,17 +182,10 @@ where
     match repo.index.load_for_update() {
         Ok(_) => (),
         Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            return Err(
-                    format!("fatal: {}
-
-Another jit process seems to be running in this repository. Please make sure all processes are terminated then try again.
-
-If it still fails, a jit process may have crashed in this repository earlier: remove the .git/index.lock file manually to continue.\n",
-                        e)
-                );
+            return Err(locked_index_message(e));
         }
         Err(_) => {
-            return Err("fatal: could not create/load .git/index\n".to_string());
+            return Err(INDEX_LOAD_OR_CREATE_FAILED.to_string());
         }
     }
 
@@ -171,30 +208,7 @@ If it still fails, a jit process may have crashed in this repository earlier: re
     }
 
     for pathname in paths {
-        let data = match repo.workspace.read_file(&pathname) {
-            Ok(data) => data,
-            Err(ref err) if err.kind() == io::ErrorKind::PermissionDenied => {
-                repo.index.release_lock().unwrap();
-                return Err(format!(
-                    "{}
-
-fatal: adding files failed\n",
-                    err
-                ));
-            }
-            _ => {
-                panic!("fatal: adding files failed");
-            }
-        };
-
-        let stat = repo
-            .workspace
-            .stat_file(&pathname)
-            .expect("could not stat file");
-        let blob = Blob::new(data.as_bytes());
-        repo.database.store(&blob).expect("storing blob failed");
-
-        repo.index.add(&pathname, &blob.get_oid(), &stat);
+        add_to_index(&mut repo, &pathname)?;
     }
 
     repo.index
