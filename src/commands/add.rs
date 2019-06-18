@@ -1,131 +1,10 @@
-use std::collections::HashMap;
-use std::fs;
 use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
 
-use crate::commit::{Author, Commit};
-use crate::database::{Blob, Entry, Object, Tree};
+use crate::commands::CommandContext;
+use crate::database::{Blob, Object};
 use crate::repository::Repository;
 
 static INDEX_LOAD_OR_CREATE_FAILED: &'static str = "fatal: could not create/load .git/index\n";
-
-pub struct CommandContext<I, O, E>
-where
-    I: Read,
-    O: Write,
-    E: Write,
-{
-    pub dir: PathBuf,
-    pub env: HashMap<String, String>,
-    pub args: Vec<String>,
-    pub stdin: I,
-    pub stdout: O,
-    pub stderr: E,
-}
-
-pub fn execute<I, O, E>(ctx: CommandContext<I, O, E>) -> Result<(), String>
-where
-    I: Read,
-    O: Write,
-    E: Write,
-{
-    if ctx.args.len() < 2 {
-        return Err("No command provided\n".to_string());
-    }
-    let command = &ctx.args[1];
-    match &command[..] {
-        "init" => init_command(ctx),
-        "commit" => commit_command(ctx),
-        "add" => add_command(ctx),
-        _ => Err(format!("invalid command: {}\n", command)),
-    }
-}
-
-pub fn init_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>
-where
-    I: Read,
-    O: Write,
-    E: Write,
-{
-    let working_dir = ctx.dir;
-    let root_path = if ctx.args.len() > 2 {
-        Path::new(&ctx.args[2])
-    } else {
-        working_dir.as_path()
-    };
-    let git_path = root_path.join(".git");
-
-    for d in ["objects", "refs"].iter() {
-        fs::create_dir_all(git_path.join(d)).expect("failed to create dir");
-    }
-
-    ctx.stdout
-        .write_all(format!("Initialized empty Jit repository in {:?}\n", git_path).as_bytes())
-        .unwrap();
-
-    Ok(())
-}
-
-pub fn commit_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>
-where
-    I: Read,
-    O: Write,
-    E: Write,
-{
-    let working_dir = ctx.dir;
-    let root_path = working_dir.as_path();
-    let mut repo = Repository::new(&root_path.join(".git"));
-
-    repo.index.load().expect("loading .git/index failed");
-    let entries: Vec<Entry> = repo
-        .index
-        .entries
-        .iter()
-        .map(|(_path, idx_entry)| Entry::from(idx_entry))
-        .collect();
-    let root = Tree::build(&entries);
-    root.traverse(&repo.database)
-        .expect("Traversing tree to write to database failed");
-
-    let parent = repo.refs.read_head();
-    let author_name = ctx
-        .env
-        .get("GIT_AUTHOR_NAME")
-        .expect("GIT_AUTHOR_NAME not set");
-    let author_email = ctx
-        .env
-        .get("GIT_AUTHOR_EMAIL")
-        .expect("GIT_AUTHOR_EMAIL not set");
-
-    let author = Author {
-        name: author_name.to_string(),
-        email: author_email.to_string(),
-    };
-
-    let mut commit_message = String::new();
-    ctx.stdin
-        .read_to_string(&mut commit_message)
-        .expect("reading commit from STDIN failed");
-
-    let commit = Commit::new(&parent, root.get_oid(), author, commit_message);
-    repo.database.store(&commit).expect("writing commit failed");
-    repo.refs
-        .update_head(&commit.get_oid())
-        .expect("updating HEAD failed");
-    repo.refs
-        .update_master_ref(&commit.get_oid())
-        .expect("updating master ref failed");
-
-    let commit_prefix = if parent.is_some() {
-        ""
-    } else {
-        "(root-commit) "
-    };
-
-    println!("[{}{}] {}", commit_prefix, commit.get_oid(), commit.message);
-
-    Ok(())
-}
 
 fn locked_index_message(e: &std::io::Error) -> String {
     format!("fatal: {}
@@ -220,44 +99,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::util::*;
-    use std::env;
-    use std::fs::{self, File, OpenOptions};
-    use std::io::Cursor;
+    use crate::commands::tests::*;
+    use std::fs::{self, File};
     use std::os::unix::fs::PermissionsExt;
-
-    fn gen_repo_path() -> PathBuf {
-        let mut temp_dir = generate_temp_name();
-        temp_dir.push_str("_rug_test");
-        let repo_path = env::temp_dir()
-            .canonicalize()
-            .expect("canonicalization failed")
-            .join(temp_dir);
-        repo_path.to_path_buf()
-    }
-
-    fn repo(repo_path: &Path) -> Repository {
-        Repository::new(&repo_path.join(".git"))
-    }
-
-    fn write_file(
-        repo_path: &Path,
-        file_name: &str,
-        contents: &[u8],
-    ) -> Result<(), std::io::Error> {
-        let path = Path::new(repo_path).join(file_name);
-        fs::create_dir_all(path.parent().unwrap())?;
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .truncate(true)
-            .open(&path)?;
-        file.write_all(contents)?;
-
-        Ok(())
-    }
+    use std::path::Path;
 
     fn make_executable(repo_path: &Path, file_name: &str) -> Result<(), std::io::Error> {
         let path = repo_path.join(file_name);
@@ -295,23 +140,6 @@ mod tests {
         assert_eq!(expected, actual);
 
         Ok(())
-    }
-
-    fn jit_cmd(repo_path: &Path, args: Vec<&str>) -> Result<(), String> {
-        let stdin = String::new();
-        let stdout = Cursor::new(vec![]);
-        let stderr = Cursor::new(vec![]);
-
-        let ctx = CommandContext {
-            dir: Path::new(repo_path).to_path_buf(),
-            env: HashMap::new(),
-            args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
-            stdin: stdin.as_bytes(),
-            stdout,
-            stderr,
-        };
-
-        execute(ctx)
     }
 
     #[test]
@@ -429,5 +257,4 @@ mod tests {
         jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]).unwrap();
         assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
     }
-
 }
