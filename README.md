@@ -1,5 +1,7 @@
 ## rug, a Git implementation in Rust
 
+[![CircleCI](https://circleci.com/gh/samrat/rug.svg?style=svg)](https://circleci.com/gh/samrat/rug)
+
 This is my implementation of *Jit*, from James Coglan's book *Building
 Git*.
 

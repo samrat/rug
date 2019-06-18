@@ -315,7 +315,6 @@ mod tests {
         let repo_path = gen_repo_path();
         write_file(&repo_path, "hello.txt", "hello".as_bytes()).unwrap();
         make_executable(&repo_path, "hello.txt").unwrap();
-        let path = repo_path.join("hello.txt");
 
         jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]).unwrap();
         jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).unwrap();
