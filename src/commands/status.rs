@@ -1,6 +1,6 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 
 pub fn status_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>
 where
@@ -25,7 +25,9 @@ where
     untracked_files.sort();
 
     for file in untracked_files {
-        ctx.stdout.write(format!("?? {}\n", file).as_bytes());
+        ctx.stdout
+            .write(format!("?? {}\n", file).as_bytes())
+            .unwrap();
     }
     Ok(())
 }
@@ -36,13 +38,16 @@ mod tests {
 
     #[test]
     fn list_untracked_files_in_name_order() {
-        let repo_path = gen_repo_path();
-        let mut repo = repo(&repo_path);
+        let mut cmd_helper = CommandHelper::new();
 
-        write_file(&repo_path, "file.txt", "hello".as_bytes()).unwrap();
-        write_file(&repo_path, "another.txt", "hello".as_bytes()).unwrap();
+        cmd_helper
+            .write_file("file.txt", "hello".as_bytes())
+            .unwrap();
+        cmd_helper
+            .write_file("another.txt", "hello".as_bytes())
+            .unwrap();
 
-        if let Ok((stdout, stderr)) = jit_cmd(&repo_path, vec!["", "status"]) {
+        if let Ok((stdout, _stderr)) = cmd_helper.jit_cmd(vec!["", "status"]) {
             assert_output(
                 &stdout,
                 "?? another.txt
@@ -55,14 +60,19 @@ mod tests {
 
     #[test]
     fn list_files_as_untracked_if_not_in_index() {
-        let repo_path = gen_repo_path();
-        write_file(&repo_path, "committed.txt", "".as_bytes()).unwrap();
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]).unwrap();
-        jit_cmd(&repo_path, vec!["", "add", "."]);
-        commit(&repo_path, "commit message");
+        let mut cmd_helper = CommandHelper::new();
 
-        write_file(&repo_path, "file.txt", "".as_bytes()).unwrap();
-        if let Ok((stdout, stderr)) = jit_cmd(&repo_path, vec!["", "status"]) {
+        cmd_helper
+            .write_file("committed.txt", "".as_bytes())
+            .unwrap();
+        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(vec!["", "add", "."]).unwrap();
+        cmd_helper.commit("commit message");
+
+        cmd_helper.write_file("file.txt", "".as_bytes()).unwrap();
+
+        cmd_helper.clear_stdout();
+        if let Ok((stdout, _stderr)) = cmd_helper.jit_cmd(vec!["", "status"]) {
             assert_output(&stdout, "?? file.txt\n")
         } else {
             assert!(false);
