@@ -1,0 +1,15 @@
+version: 2
+jobs:
+  test:
+    docker:
+      - image: circleci/rust:latest
+
+    steps:
+      - checkout
+
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - run:
+          name: Run tests
+          command: cargo test --all
