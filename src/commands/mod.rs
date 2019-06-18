@@ -9,16 +9,18 @@ mod init;
 use init::init_command;
 mod commit;
 use commit::commit_command;
-// mod status;
+mod status;
+use status::status_command;
 
-pub struct CommandContext<I, O, E>
+#[derive(Debug)]
+pub struct CommandContext<'a, I, O, E>
 where
     I: Read,
     O: Write,
     E: Write,
 {
     pub dir: PathBuf,
-    pub env: HashMap<String, String>,
+    pub env: &'a HashMap<String, String>,
     pub args: Vec<String>,
     pub stdin: I,
     pub stdout: O,
@@ -39,6 +41,7 @@ where
         "init" => init_command(ctx),
         "commit" => commit_command(ctx),
         "add" => add_command(ctx),
+        "status" => status_command(ctx),
         _ => Err(format!("invalid command: {}\n", command)),
     }
 }
@@ -67,6 +70,63 @@ mod tests {
         Repository::new(&repo_path.join(".git"))
     }
 
+    struct CommandHelper {
+        stdin: String,
+        stdout: Cursor<Vec<u8>>,
+        stderr: Cursor<Vec<u8>>,
+        env: HashMap<String, String>,
+    }
+
+    impl CommandHelper {
+        fn new() -> CommandHelper {
+            CommandHelper {
+                stdin: String::new(),
+                stdout: Cursor::new(vec![]),
+                stderr: Cursor::new(vec![]),
+                env: HashMap::new(),
+            }
+        }
+
+        fn set_env(&mut self, key: &str, value: &str) {
+            self.env.insert(key.to_string(), value.to_string());
+        }
+
+        fn set_stdin(&mut self, s: &str) {
+            self.stdin = s.to_string();
+        }
+
+        pub fn jit_cmd(
+            &mut self,
+            repo_path: &Path,
+            args: Vec<&str>,
+        ) -> Result<(String, String), String> {
+            let ctx = CommandContext {
+                dir: Path::new(repo_path).to_path_buf(),
+                env: &self.env,
+                args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
+                stdin: self.stdin.as_bytes(),
+                stdout: &mut self.stdout,
+                stderr: &mut self.stderr,
+            };
+
+            match execute(ctx) {
+                Ok(_) => Ok((
+                    str::from_utf8(&self.stdout.clone().into_inner())
+                        .expect("invalid stdout")
+                        .to_string(),
+                    str::from_utf8(&self.stderr.clone().into_inner())
+                        .expect("invalid stderr")
+                        .to_string(),
+                )),
+                Err(e) => {
+                    // eprintln!("execute failed: {:}", e);
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    // TODO: Migrate to CommandHelper method. And remove this.
     pub fn jit_cmd(repo_path: &Path, args: Vec<&str>) -> Result<(String, String), String> {
         let stdin = String::new();
         let mut stdout = Cursor::new(vec![]);
@@ -74,7 +134,7 @@ mod tests {
 
         let ctx = CommandContext {
             dir: Path::new(repo_path).to_path_buf(),
-            env: HashMap::new(),
+            env: &HashMap::new(),
             args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
             stdin: stdin.as_bytes(),
             stdout: &mut stdout,
@@ -90,7 +150,10 @@ mod tests {
                     .expect("invalid stderr")
                     .to_string(),
             )),
-            Err(e) => Err(e),
+            Err(e) => {
+                // eprintln!("execute failed: {:}", e);
+                Err(e)
+            }
         }
     }
 
@@ -114,5 +177,15 @@ mod tests {
 
     pub fn assert_output(stream: &str, expected: &str) {
         assert_eq!(stream, expected);
+    }
+
+    pub fn commit(repo_path: &Path, msg: &str) {
+        let repo = repo(&repo_path);
+        let mut cmd_helper = CommandHelper::new();
+
+        cmd_helper.set_env("GIT_AUTHOR_NAME", "A. U. Thor");
+        cmd_helper.set_env("GIT_AUTHOR_EMAIL", "author@example.com");
+        cmd_helper.set_stdin("message");
+        cmd_helper.jit_cmd(&repo_path, vec!["", "commit"]);
     }
 }

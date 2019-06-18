@@ -26,7 +26,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
         dir: env::current_dir().unwrap(),
-        env: env::vars().collect::<HashMap<String, String>>(),
+        env: &env::vars().collect::<HashMap<String, String>>(),
         args,
         stdin: io::stdin(),
         stdout: io::stdout(),

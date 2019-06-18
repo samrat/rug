@@ -387,6 +387,10 @@ impl Index {
     pub fn release_lock(&mut self) -> Result<(), std::io::Error> {
         self.lockfile.rollback()
     }
+
+    pub fn is_tracked_path(&self, pathname: &str) -> bool {
+        self.entries.contains_key(pathname)
+    }
 }
 
 #[cfg(test)]
