@@ -231,7 +231,7 @@ mod tests {
     fn write_file(repo_path: &Path, file_name: &str, contents: &[u8]) ->
         Result<(), std::io::Error> {
         let path = Path::new(repo_path).join(file_name);
-        fs::create_dir_all(path.parent().unwrap());
+        fs::create_dir_all(path.parent().unwrap())?;
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -250,7 +250,7 @@ mod tests {
         let mut permissions = metadata.permissions();
 
         permissions.set_mode(0o744);
-        fs::set_permissions(path, permissions);
+        fs::set_permissions(path, permissions)?;
         Ok(())
     }
 
@@ -261,25 +261,28 @@ mod tests {
         let mut permissions = metadata.permissions();
 
         permissions.set_mode(0o044);
-        fs::set_permissions(path, permissions);
+        fs::set_permissions(path, permissions)?;
         Ok(())
     }
 
-    fn assert_index(repo_path: &Path, expected: Vec<(u32, String)>) {
+    fn assert_index(repo_path: &Path, expected: Vec<(u32, String)>)
+                    -> Result<(), std::io::Error> {
         let mut repo = repo(repo_path);
-        repo.index.load();
+        repo.index.load()?;
 
         let actual :Vec<(u32, String)> =
             repo.index.entries.iter()
             .map(|(_, entry)| (entry.mode, entry.path.clone())).collect();
 
         assert_eq!(expected, actual);
+
+        Ok(())
     }
 
     fn jit_cmd(repo_path: &Path, args: Vec<&str>) -> Result<(), String> {
         let stdin = String::new();
-        let mut stdout = Cursor::new(vec![]);
-        let mut stderr = Cursor::new(vec![]);
+        let stdout = Cursor::new(vec![]);
+        let stderr = Cursor::new(vec![]);
 
         let ctx = CommandContext {
             dir: Path::new(repo_path).to_path_buf(),
@@ -296,108 +299,147 @@ mod tests {
     #[test]
     fn add_regular_file_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
-        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
-        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"])
+            .unwrap();
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn add_executable_file_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        make_executable(&repo_path, "hello.txt");
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        make_executable(&repo_path, "hello.txt")
+            .unwrap();
         let path = repo_path.join("hello.txt");
-        let file = File::open(path).unwrap();
-        let metadata = file.metadata().unwrap();
-        let mut permissions = metadata.permissions();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
-        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
-        assert_index(&repo_path, vec![(0o100755, "hello.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"])
+            .unwrap();
+        assert_index(&repo_path, vec![(0o100755, "hello.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn add_multiple_files_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        write_file(&repo_path, "world.txt", "world".as_bytes());
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        write_file(&repo_path, "world.txt", "world".as_bytes())
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
-        jit_cmd(&repo_path, vec!["", "add", "hello.txt", "world.txt"]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt", "world.txt"])
+            .unwrap();
 
         assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string()),
-                                      (0o100644, "world.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+                                      (0o100644, "world.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn incrementally_add_files_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        write_file(&repo_path, "world.txt", "world".as_bytes());
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        write_file(&repo_path, "world.txt", "world".as_bytes())
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
-        jit_cmd(&repo_path, vec!["", "add", "hello.txt"]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "add", "hello.txt"])
+            .unwrap();
 
-        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())]);
+        assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string())])
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "add", "world.txt"]);
+        jit_cmd(&repo_path, vec!["", "add", "world.txt"])
+            .unwrap();
         assert_index(&repo_path, vec![(0o100644, "hello.txt".to_string()),
-                                      (0o100644, "world.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+                                      (0o100644, "world.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn add_a_directory_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "a-dir/nested.txt", "hello".as_bytes());
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        write_file(&repo_path, "a-dir/nested.txt", "hello".as_bytes())
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "add", "a-dir"]);
-        assert_index(&repo_path, vec![(0o100644, "a-dir/nested.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+        jit_cmd(&repo_path, vec!["", "add", "a-dir"])
+            .unwrap();
+        assert_index(&repo_path, vec![(0o100644, "a-dir/nested.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn add_repository_root_to_index() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "a/b/c/hello.txt", "hello".as_bytes());
+        write_file(&repo_path, "a/b/c/hello.txt", "hello".as_bytes())
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
-        jit_cmd(&repo_path, vec!["", "add", "."]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
+        jit_cmd(&repo_path, vec!["", "add", "."])
+            .unwrap();
 
-        assert_index(&repo_path, vec![(0o100644, "a/b/c/hello.txt".to_string())]);
-        fs::remove_dir_all(repo_path);
+        assert_index(&repo_path, vec![(0o100644, "a/b/c/hello.txt".to_string())])
+            .unwrap();
+        fs::remove_dir_all(repo_path)
+            .unwrap();
     }
 
     #[test]
     fn add_fails_for_non_existent_files() {
         let repo_path = gen_repo_path();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
         assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
     }
 
     #[test]
     fn add_fails_for_unreadable_files() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        make_unreadable(&repo_path, "hello.txt");
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        make_unreadable(&repo_path, "hello.txt")
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
         assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
     }
 
     #[test]
     fn add_fails_if_index_is_locked() {
         let repo_path = gen_repo_path();
-        write_file(&repo_path, "hello.txt", "hello".as_bytes());
-        write_file(&repo_path, ".git/index.lock", "hello".as_bytes());
+        write_file(&repo_path, "hello.txt", "hello".as_bytes())
+            .unwrap();
+        write_file(&repo_path, ".git/index.lock", "hello".as_bytes())
+            .unwrap();
 
-        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()]);
+        jit_cmd(&repo_path, vec!["", "init", repo_path.to_str().unwrap()])
+            .unwrap();
         assert!(jit_cmd(&repo_path, vec!["", "add", "hello.txt"]).is_err());
     }
 
