@@ -103,8 +103,8 @@ mod tests {
         cmd_helper
             .write_file("committed.txt", "".as_bytes())
             .unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "."]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.commit("commit message");
 
         cmd_helper.write_file("file.txt", "".as_bytes()).unwrap();
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn list_untracked_dir_not_contents() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.write_file("file.txt", "".as_bytes()).unwrap();
         cmd_helper
@@ -134,8 +134,8 @@ mod tests {
         cmd_helper
             .write_file("a/b/inner.txt", "".as_bytes())
             .unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "."]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.commit("commit message");
 
         cmd_helper.write_file("a/outer.txt", "".as_bytes()).unwrap();
@@ -154,7 +154,7 @@ mod tests {
     fn does_not_list_empty_untracked_dirs() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper.mkdir("outer").unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("");
     }
@@ -165,7 +165,7 @@ mod tests {
         cmd_helper
             .write_file("outer/inner/file.txt", "".as_bytes())
             .unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("?? outer/\n");
     }

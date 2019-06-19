@@ -107,8 +107,8 @@ mod tests {
         cmd_helper
             .write_file("hello.txt", "hello".as_bytes())
             .unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
         cmd_helper
             .assert_index(vec![(0o100644, "hello.txt".to_string())])
             .unwrap();
@@ -122,8 +122,8 @@ mod tests {
             .unwrap();
         cmd_helper.make_executable("hello.txt").unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
         cmd_helper
             .assert_index(vec![(0o100755, "hello.txt".to_string())])
             .unwrap();
@@ -139,9 +139,9 @@ mod tests {
             .write_file("world.txt", "world".as_bytes())
             .unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper
-            .jit_cmd(vec!["", "add", "hello.txt", "world.txt"])
+            .jit_cmd(&["add", "hello.txt", "world.txt"])
             .unwrap();
 
         cmd_helper
@@ -162,14 +162,14 @@ mod tests {
             .write_file("world.txt", "world".as_bytes())
             .unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
 
         cmd_helper
             .assert_index(vec![(0o100644, "hello.txt".to_string())])
             .unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "add", "world.txt"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "world.txt"]).unwrap();
         cmd_helper
             .assert_index(vec![
                 (0o100644, "hello.txt".to_string()),
@@ -184,9 +184,9 @@ mod tests {
         cmd_helper
             .write_file("a-dir/nested.txt", "hello".as_bytes())
             .unwrap();
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "add", "a-dir"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "a-dir"]).unwrap();
         cmd_helper
             .assert_index(vec![(0o100644, "a-dir/nested.txt".to_string())])
             .unwrap();
@@ -199,8 +199,8 @@ mod tests {
             .write_file("a/b/c/hello.txt", "hello".as_bytes())
             .unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        cmd_helper.jit_cmd(vec!["", "add", "."]).unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
 
         cmd_helper
             .assert_index(vec![(0o100644, "a/b/c/hello.txt".to_string())])
@@ -211,8 +211,8 @@ mod tests {
     fn add_fails_for_non_existent_files() {
         let mut cmd_helper = CommandHelper::new();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        assert!(cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).is_err());
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        assert!(cmd_helper.jit_cmd(&["add", "hello.txt"]).is_err());
     }
 
     #[test]
@@ -223,8 +223,8 @@ mod tests {
             .unwrap();
         cmd_helper.make_unreadable("hello.txt").unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        assert!(cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).is_err());
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        assert!(cmd_helper.jit_cmd(&["add", "hello.txt"]).is_err());
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod tests {
             .write_file(".git/index.lock", "hello".as_bytes())
             .unwrap();
 
-        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
-        assert!(cmd_helper.jit_cmd(vec!["", "add", "hello.txt"]).is_err());
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        assert!(cmd_helper.jit_cmd(&["add", "hello.txt"]).is_err());
     }
 }

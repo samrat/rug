@@ -98,11 +98,14 @@ mod tests {
             self.stdin = s.to_string();
         }
 
-        pub fn jit_cmd(&mut self, args: Vec<&str>) -> Result<(String, String), String> {
+        pub fn jit_cmd(&mut self, args: &[&str]) -> Result<(String, String), String> {
+            let mut args = args.iter().map(|a| a.to_string()).collect::<Vec<String>>();
+            // Command handler assumes first arg is executable name
+            args.insert(0, "".to_string());
             let ctx = CommandContext {
                 dir: Path::new(&self.repo_path).to_path_buf(),
                 env: &self.env,
-                args: args.iter().map(|a| a.to_string()).collect::<Vec<String>>(),
+                args,
                 stdin: self.stdin.as_bytes(),
                 stdout: &mut self.stdout,
                 stderr: &mut self.stderr,
@@ -128,7 +131,7 @@ mod tests {
             self.set_env("GIT_AUTHOR_NAME", "A. U. Thor");
             self.set_env("GIT_AUTHOR_EMAIL", "author@example.com");
             self.set_stdin(msg);
-            self.jit_cmd(vec!["", "commit"]).unwrap();
+            self.jit_cmd(&["commit"]).unwrap();
         }
 
         pub fn write_file(&self, file_name: &str, contents: &[u8]) -> Result<(), std::io::Error> {
@@ -192,7 +195,7 @@ mod tests {
         }
 
         pub fn assert_status(&mut self, expected: &str) {
-            if let Ok((stdout, _stderr)) = self.jit_cmd(vec!["", "status"]) {
+            if let Ok((stdout, _stderr)) = self.jit_cmd(&["status"]) {
                 assert_output(&stdout, expected)
             } else {
                 assert!(false);
