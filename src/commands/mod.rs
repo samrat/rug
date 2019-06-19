@@ -9,7 +9,7 @@ use init::init_command;
 mod commit;
 use commit::commit_command;
 mod status;
-use status::status_command;
+use status::Status;
 
 #[derive(Debug)]
 pub struct CommandContext<'a, I, O, E>
@@ -40,7 +40,10 @@ where
         "init" => init_command(ctx),
         "commit" => commit_command(ctx),
         "add" => add_command(ctx),
-        "status" => status_command(ctx),
+        "status" => {
+            let mut cmd = Status::new(ctx);
+            cmd.run()
+        }
         _ => Err(format!("invalid command: {}\n", command)),
     }
 }

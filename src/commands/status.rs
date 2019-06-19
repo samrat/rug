@@ -1,78 +1,118 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Check if path is trackable but not currently tracked
-fn is_trackable_path(
-    repo: &Repository,
-    path: &str,
-    stat: &fs::Metadata,
-) -> Result<bool, std::io::Error> {
-    if stat.is_file() {
-        return Ok(!repo.index.is_tracked_path(path));
-    }
-
-    let items = repo.workspace.list_dir(&repo.workspace.abs_path(path))?;
-    let (files, dirs): (Vec<(&String, &fs::Metadata)>, Vec<(&String, &fs::Metadata)>) =
-        items.iter().partition(|(_path, stat)| stat.is_file());
-
-    for (file_path, file_stat) in files.iter() {
-        if is_trackable_path(repo, file_path, file_stat)? {
-            return Ok(true);
-        }
-    }
-
-    for (dir_path, dir_stat) in dirs.iter() {
-        if is_trackable_path(repo, dir_path, dir_stat)? {
-            return Ok(true);
-        }
-    }
-
-    return Ok(false);
-}
-
-fn scan_workspace(repo: &Repository, prefix: &Path) -> Result<Vec<String>, std::io::Error> {
-    let mut untracked = vec![];
-    for (mut path, stat) in repo.workspace.list_dir(prefix)? {
-        if repo.index.is_tracked_path(&path) {
-            if repo.workspace.is_dir(&path) {
-                untracked
-                    .extend_from_slice(&scan_workspace(repo, &repo.workspace.abs_path(&path))?);
-            }
-        } else if is_trackable_path(repo, &path, &stat)? {
-            if repo.workspace.is_dir(&path) {
-                path.push('/');
-            }
-            untracked.push(path);
-        }
-    }
-
-    Ok(untracked)
-}
-
-pub fn status_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>
+pub struct Status<'a, I, O, E>
 where
     I: Read,
     O: Write,
     E: Write,
 {
-    let working_dir = ctx.dir;
-    let root_path = working_dir.as_path();
-    let mut repo = Repository::new(&root_path.join(".git"));
+    root_path: PathBuf,
+    repo: Repository,
+    stats: HashMap<String, fs::Metadata>,
+    ctx: CommandContext<'a, I, O, E>,
+}
 
-    repo.index.load().expect("failed to load index");
+impl<'a, I, O, E> Status<'a, I, O, E>
+where
+    I: Read,
+    O: Write,
+    E: Write,
+{
+    pub fn new(ctx: CommandContext<'a, I, O, E>) -> Status<'a, I, O, E>
+    where
+        I: Read,
+        O: Write,
+        E: Write,
+    {
+        let working_dir = &ctx.dir;
+        let root_path = working_dir.as_path();
+        let repo = Repository::new(&root_path.join(".git"));
 
-    let mut untracked_files = scan_workspace(&repo, &root_path).unwrap();
-    untracked_files.sort();
-
-    for file in untracked_files {
-        ctx.stdout
-            .write(format!("?? {}\n", file).as_bytes())
-            .unwrap();
+        Status {
+            root_path: working_dir.to_path_buf(),
+            repo,
+            stats: HashMap::new(),
+            ctx: ctx,
+        }
     }
-    Ok(())
+
+    pub fn run(&mut self) -> Result<(), String> {
+        self.repo.index.load().expect("failed to load index");
+
+        let mut untracked_files = self.scan_workspace(&self.root_path.clone()).unwrap();
+        untracked_files.sort();
+
+        let mut changed = self.detect_workspace_changes().unwrap();
+        changed.sort();
+
+        for file in untracked_files {
+            self.ctx
+                .stdout
+                .write(format!("?? {}\n", file).as_bytes())
+                .unwrap();
+        }
+        Ok(())
+    }
+
+    fn scan_workspace(&mut self, prefix: &Path) -> Result<Vec<String>, std::io::Error> {
+        let mut untracked = vec![];
+        for (mut path, stat) in self.repo.workspace.list_dir(prefix)? {
+            if self.repo.index.is_tracked_path(&path) {
+                if self.repo.workspace.is_dir(&path) {
+                    untracked.extend_from_slice(
+                        &self.scan_workspace(&self.repo.workspace.abs_path(&path))?,
+                    );
+                } else {
+                    // path is file
+                    self.stats.insert(path.to_string(), stat);
+                }
+            } else if self.is_trackable_path(&path, &stat)? {
+                if self.repo.workspace.is_dir(&path) {
+                    path.push('/');
+                }
+                untracked.push(path);
+            }
+        }
+
+        Ok(untracked)
+    }
+
+    fn detect_workspace_changes(&self) -> Result<Vec<String>, std::io::Error> {
+        Ok(vec![])
+    }
+
+    /// Check if path is trackable but not currently tracked
+    fn is_trackable_path(&self, path: &str, stat: &fs::Metadata) -> Result<bool, std::io::Error> {
+        if stat.is_file() {
+            return Ok(!self.repo.index.is_tracked_path(path));
+        }
+
+        let items = self
+            .repo
+            .workspace
+            .list_dir(&self.repo.workspace.abs_path(path))?;
+        let (files, dirs): (Vec<(&String, &fs::Metadata)>, Vec<(&String, &fs::Metadata)>) =
+            items.iter().partition(|(_path, stat)| stat.is_file());
+
+        for (file_path, file_stat) in files.iter() {
+            if self.is_trackable_path(file_path, file_stat)? {
+                return Ok(true);
+            }
+        }
+
+        for (dir_path, dir_stat) in dirs.iter() {
+            if self.is_trackable_path(dir_path, dir_stat)? {
+                return Ok(true);
+            }
+        }
+
+        return Ok(false);
+    }
 }
 
 #[cfg(test)]
