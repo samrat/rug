@@ -141,6 +141,10 @@ impl Entry {
 
         parent_dirs
     }
+
+    pub fn stat_match(&self, stat: &fs::Metadata) -> bool {
+        self.size == 0 || self.size == stat.size()
+    }
 }
 
 pub struct Checksum<T>

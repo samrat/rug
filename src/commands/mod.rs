@@ -143,7 +143,7 @@ mod tests {
             let mut file = OpenOptions::new()
                 .read(true)
                 .write(true)
-                .create_new(true)
+                .create(true)
                 .truncate(true)
                 .open(&path)?;
             file.write_all(contents)?;

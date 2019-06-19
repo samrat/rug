@@ -1,4 +1,5 @@
 use crate::commands::CommandContext;
+use crate::index;
 use crate::repository::Repository;
 use std::collections::HashMap;
 use std::fs;
@@ -15,6 +16,7 @@ where
     repo: Repository,
     stats: HashMap<String, fs::Metadata>,
     ctx: CommandContext<'a, I, O, E>,
+    changed: Vec<String>,
 }
 
 impl<'a, I, O, E> Status<'a, I, O, E>
@@ -38,6 +40,7 @@ where
             repo,
             stats: HashMap::new(),
             ctx: ctx,
+            changed: vec![],
         }
     }
 
@@ -47,8 +50,15 @@ where
         let mut untracked_files = self.scan_workspace(&self.root_path.clone()).unwrap();
         untracked_files.sort();
 
-        let mut changed = self.detect_workspace_changes().unwrap();
-        changed.sort();
+        self.detect_workspace_changes().unwrap();
+        self.changed.sort();
+
+        for file in &self.changed {
+            self.ctx
+                .stdout
+                .write(format!(" M {}\n", file).as_bytes())
+                .unwrap();
+        }
 
         for file in untracked_files {
             self.ctx
@@ -56,6 +66,7 @@ where
                 .write(format!("?? {}\n", file).as_bytes())
                 .unwrap();
         }
+
         Ok(())
     }
 
@@ -82,8 +93,29 @@ where
         Ok(untracked)
     }
 
-    fn detect_workspace_changes(&self) -> Result<Vec<String>, std::io::Error> {
-        Ok(vec![])
+    fn detect_workspace_changes(&mut self) -> Result<(), std::io::Error> {
+        let entries: Vec<index::Entry> = self
+            .repo
+            .index
+            .entries
+            .iter()
+            .map(|(_, entry)| entry.clone())
+            .collect();
+        for entry in entries {
+            self.check_index_entry(&entry);
+        }
+
+        Ok(())
+    }
+
+    fn check_index_entry(&mut self, entry: &index::Entry) {
+        let stat = self
+            .stats
+            .get(&entry.path)
+            .expect("didn't find cached stat");
+        if !entry.stat_match(stat) {
+            self.changed.push(entry.path.clone());
+        }
     }
 
     /// Check if path is trackable but not currently tracked
@@ -202,11 +234,42 @@ mod tests {
     #[test]
     fn list_untracked_dirs_that_indirectly_contain_files() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("outer/inner/file.txt", "".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("outer/inner/file.txt", b"").unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("?? outer/\n");
     }
+
+    fn create_and_commit(cmd_helper: &mut CommandHelper) {
+        cmd_helper.write_file("1.txt", b"one").unwrap();
+        cmd_helper.write_file("a/2.txt", b"two").unwrap();
+        cmd_helper.write_file("a/b/3.txt", b"three").unwrap();
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.commit("commit message");
+    }
+
+    #[test]
+    fn prints_nothing_when_no_files_changed() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
+    }
+
+    #[test]
+    fn reports_files_with_changed_contents() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.clear_stdout();
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        cmd_helper.write_file("a/2.txt", b"modified").unwrap();
+        cmd_helper.assert_status(
+            " M 1.txt
+ M a/2.txt\n",
+        );
+    }
+
 }
