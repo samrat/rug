@@ -1,17 +1,47 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
+use std::fs;
 use std::io::{Read, Write};
 use std::path::Path;
 
+/// Check if path is trackable but not currently tracked
+fn is_trackable_path(
+    repo: &Repository,
+    path: &str,
+    stat: &fs::Metadata,
+) -> Result<bool, std::io::Error> {
+    if stat.is_file() {
+        return Ok(!repo.index.is_tracked_path(path));
+    }
+
+    let items = repo.workspace.list_dir(&repo.workspace.abs_path(path))?;
+    let (files, dirs): (Vec<(&String, &fs::Metadata)>, Vec<(&String, &fs::Metadata)>) =
+        items.iter().partition(|(_path, stat)| stat.is_file());
+
+    for (file_path, file_stat) in files.iter() {
+        if is_trackable_path(repo, file_path, file_stat)? {
+            return Ok(true);
+        }
+    }
+
+    for (dir_path, dir_stat) in dirs.iter() {
+        if is_trackable_path(repo, dir_path, dir_stat)? {
+            return Ok(true);
+        }
+    }
+
+    return Ok(false);
+}
+
 fn scan_workspace(repo: &Repository, prefix: &Path) -> Result<Vec<String>, std::io::Error> {
     let mut untracked = vec![];
-    for (mut path, _stat) in repo.workspace.list_dir(prefix)? {
+    for (mut path, stat) in repo.workspace.list_dir(prefix)? {
         if repo.index.is_tracked_path(&path) {
             if repo.workspace.is_dir(&path) {
                 untracked
                     .extend_from_slice(&scan_workspace(repo, &repo.workspace.abs_path(&path))?);
             }
-        } else {
+        } else if is_trackable_path(repo, &path, &stat)? {
             if repo.workspace.is_dir(&path) {
                 path.push('/');
             }
@@ -118,5 +148,25 @@ mod tests {
             "?? a/b/c/
 ?? a/outer.txt\n",
         );
+    }
+
+    #[test]
+    fn does_not_list_empty_untracked_dirs() {
+        let mut cmd_helper = CommandHelper::new();
+        cmd_helper.mkdir("outer").unwrap();
+        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
+    }
+
+    #[test]
+    fn list_untracked_dirs_that_indirectly_contain_files() {
+        let mut cmd_helper = CommandHelper::new();
+        cmd_helper
+            .write_file("outer/inner/file.txt", "".as_bytes())
+            .unwrap();
+        cmd_helper.jit_cmd(vec!["", "init"]).unwrap();
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("?? outer/\n");
     }
 }

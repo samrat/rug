@@ -145,6 +145,10 @@ mod tests {
             Ok(())
         }
 
+        pub fn mkdir(&self, dir_name: &str) -> Result<(), std::io::Error> {
+            fs::create_dir_all(self.repo_path.join(dir_name))
+        }
+
         pub fn make_executable(&self, file_name: &str) -> Result<(), std::io::Error> {
             let path = self.repo_path.join(file_name);
             let file = File::open(&path)?;
