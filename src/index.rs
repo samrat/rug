@@ -143,7 +143,7 @@ impl Entry {
     }
 
     pub fn stat_match(&self, stat: &fs::Metadata) -> bool {
-        self.size == 0 || self.size == stat.size()
+        (self.mode == Entry::mode(stat.mode())) && (self.size == 0 || self.size == stat.size())
     }
 }
 

@@ -272,4 +272,14 @@ mod tests {
         );
     }
 
+    #[test]
+    fn reports_files_with_changed_modes() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.make_executable("a/2.txt");
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(" M a/2.txt\n");
+    }
+
 }
