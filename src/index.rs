@@ -389,7 +389,7 @@ impl Index {
     }
 
     pub fn is_tracked_path(&self, pathname: &str) -> bool {
-        self.entries.contains_key(pathname)
+        self.entries.contains_key(pathname) || self.parents.contains_key(pathname)
     }
 }
 

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::str;
 
 mod add;
 use add::add_command;
@@ -56,6 +55,7 @@ mod tests {
     use std::io::Cursor;
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
+    use std::str;
 
     pub fn gen_repo_path() -> PathBuf {
         let mut temp_dir = generate_temp_name();
@@ -185,6 +185,14 @@ mod tests {
 
         pub fn clear_stdout(&mut self) {
             self.stdout = Cursor::new(vec![]);
+        }
+
+        pub fn assert_status(&mut self, expected: &str) {
+            if let Ok((stdout, _stderr)) = self.jit_cmd(vec!["", "status"]) {
+                assert_output(&stdout, expected)
+            } else {
+                assert!(false);
+            }
         }
     }
 
