@@ -53,6 +53,7 @@ mod tests {
     use super::*;
     use crate::repository::Repository;
     use crate::util::*;
+    use filetime::FileTime;
     use std::env;
     use std::fs::{self, File, OpenOptions};
     use std::io::Cursor;
@@ -60,6 +61,7 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::str;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     pub fn gen_repo_path() -> PathBuf {
         let mut temp_dir = generate_temp_name();
@@ -158,18 +160,14 @@ mod tests {
 
         pub fn touch(&self, file_name: &str) -> Result<(), std::io::Error> {
             let path = Path::new(&self.repo_path).join(file_name);
-            println!("touch {}", file_name);
-            let mut file = OpenOptions::new()
-                .read(true)
-                .append(false)
-                .create(false)
-                .open(&path)?;
-
-            let mut contents = vec![];
-            file.read_to_end(&mut contents);
-            file.write(&contents);
-
-            Ok(())
+            let now = FileTime::from_unix_time(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("time is broken")
+                    .as_secs() as i64,
+                0,
+            );
+            filetime::set_file_times(path, now, now)
         }
 
         pub fn make_executable(&self, file_name: &str) -> Result<(), std::io::Error> {

@@ -177,18 +177,15 @@ where
 #[cfg(test)]
 mod tests {
     use crate::commands::tests::*;
+    use std::{thread, time};
 
     #[test]
     fn list_untracked_files_in_name_order() {
         let mut cmd_helper = CommandHelper::new();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
-        cmd_helper
-            .write_file("file.txt", "hello".as_bytes())
-            .unwrap();
-        cmd_helper
-            .write_file("another.txt", "hello".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("file.txt", b"hello").unwrap();
+        cmd_helper.write_file("another.txt", b"hello").unwrap();
 
         cmd_helper.clear_stdout();
         cmd_helper.assert_status(
@@ -201,14 +198,12 @@ mod tests {
     fn list_files_as_untracked_if_not_in_index() {
         let mut cmd_helper = CommandHelper::new();
 
-        cmd_helper
-            .write_file("committed.txt", "".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("committed.txt", b"").unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.commit("commit message");
 
-        cmd_helper.write_file("file.txt", "".as_bytes()).unwrap();
+        cmd_helper.write_file("file.txt", b"").unwrap();
 
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("?? file.txt\n");
@@ -219,10 +214,8 @@ mod tests {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.clear_stdout();
-        cmd_helper.write_file("file.txt", "".as_bytes()).unwrap();
-        cmd_helper
-            .write_file("dir/another.txt", "".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("file.txt", b"").unwrap();
+        cmd_helper.write_file("dir/another.txt", b"").unwrap();
         cmd_helper.assert_status(
             "?? dir/
 ?? file.txt\n",
@@ -232,17 +225,13 @@ mod tests {
     #[test]
     fn list_untracked_files_inside_tracked_dir() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("a/b/inner.txt", "".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("a/b/inner.txt", b"").unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.commit("commit message");
 
-        cmd_helper.write_file("a/outer.txt", "".as_bytes()).unwrap();
-        cmd_helper
-            .write_file("a/b/c/file.txt", "".as_bytes())
-            .unwrap();
+        cmd_helper.write_file("a/outer.txt", b"").unwrap();
+        cmd_helper.write_file("a/b/c/file.txt", b"").unwrap();
 
         cmd_helper.clear_stdout();
         cmd_helper.assert_status(
@@ -316,6 +305,11 @@ mod tests {
         let mut cmd_helper = CommandHelper::new();
         create_and_commit(&mut cmd_helper);
 
+        // Sleep so that mtime is slightly different from what is in
+        // index
+        let ten_millis = time::Duration::from_millis(2);
+        thread::sleep(ten_millis);
+
         cmd_helper.write_file("a/b/3.txt", b"hello").unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status(" M a/b/3.txt\n");
@@ -325,7 +319,7 @@ mod tests {
     fn prints_nothing_if_file_is_touched() {
         let mut cmd_helper = CommandHelper::new();
         create_and_commit(&mut cmd_helper);
-        cmd_helper.touch("1.txt");
+        cmd_helper.touch("1.txt").unwrap();
 
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("");
