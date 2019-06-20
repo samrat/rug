@@ -92,7 +92,6 @@ impl Workspace {
     }
 
     pub fn stat_file(&self, file_name: &str) -> Result<fs::Metadata, std::io::Error> {
-        let file = File::open(self.path.join(file_name))?;
-        file.metadata()
+        fs::metadata(self.path.join(file_name))
     }
 }

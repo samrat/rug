@@ -46,12 +46,20 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        self.repo.index.load().expect("failed to load index");
+        self.repo
+            .index
+            .load_for_update()
+            .expect("failed to load index");
 
         let mut untracked_files = self.scan_workspace(&self.root_path.clone()).unwrap();
         untracked_files.sort();
 
         self.detect_workspace_changes().unwrap();
+
+        self.repo
+            .index
+            .write_updates()
+            .expect("failed to write index");
 
         for file in &self.changed {
             self.ctx
@@ -101,20 +109,25 @@ where
             .iter()
             .map(|(_, entry)| entry.clone())
             .collect();
-        for entry in entries {
-            self.check_index_entry(&entry);
+        for mut entry in entries {
+            self.check_index_entry(&mut entry);
         }
 
         Ok(())
     }
 
-    fn check_index_entry(&mut self, entry: &index::Entry) {
+    /// Adds modified entries to self.changed
+    fn check_index_entry(&mut self, mut entry: &mut index::Entry) {
         let stat = self
             .stats
             .get(&entry.path)
             .expect("didn't find cached stat");
         if !entry.stat_match(stat) {
             self.changed.insert(entry.path.clone());
+        }
+
+        if entry.times_match(stat) {
+            return;
         }
 
         let data = self
@@ -125,7 +138,9 @@ where
         let blob = Blob::new(data.as_bytes());
         let oid = blob.get_oid();
 
-        if entry.oid != oid {
+        if entry.oid == oid {
+            self.repo.index.update_entry_stat(&mut entry, stat);
+        } else {
             self.changed.insert(entry.path.clone());
         }
     }
@@ -167,6 +182,7 @@ mod tests {
     fn list_untracked_files_in_name_order() {
         let mut cmd_helper = CommandHelper::new();
 
+        cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper
             .write_file("file.txt", "hello".as_bytes())
             .unwrap();
@@ -174,6 +190,7 @@ mod tests {
             .write_file("another.txt", "hello".as_bytes())
             .unwrap();
 
+        cmd_helper.clear_stdout();
         cmd_helper.assert_status(
             "?? another.txt
 ?? file.txt\n",
@@ -302,6 +319,16 @@ mod tests {
         cmd_helper.write_file("a/b/3.txt", b"hello").unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status(" M a/b/3.txt\n");
+    }
+
+    #[test]
+    fn prints_nothing_if_file_is_touched() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.touch("1.txt");
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
     }
 
 }

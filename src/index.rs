@@ -145,6 +145,26 @@ impl Entry {
     pub fn stat_match(&self, stat: &fs::Metadata) -> bool {
         (self.mode == Entry::mode(stat.mode())) && (self.size == 0 || self.size == stat.size())
     }
+
+    pub fn times_match(&self, stat: &fs::Metadata) -> bool {
+        self.ctime == stat.ctime()
+            && self.ctime_nsec == stat.ctime_nsec()
+            && self.mtime == stat.mtime()
+            && self.mtime_nsec == stat.mtime_nsec()
+    }
+
+    pub fn update_stat(&mut self, stat: &fs::Metadata) {
+        self.ctime = stat.ctime();
+        self.ctime_nsec = stat.ctime_nsec();
+        self.mtime = stat.mtime();
+        self.mtime_nsec = stat.mtime_nsec();
+        self.dev = stat.dev();
+        self.ino = stat.ino();
+        self.mode = Entry::mode(stat.mode());
+        self.uid = stat.uid();
+        self.gid = stat.gid();
+        self.size = stat.size();
+    }
 }
 
 pub struct Checksum<T>
@@ -228,13 +248,13 @@ impl Index {
         }
     }
 
-    pub fn write_updates(mut self) -> Result<(), std::io::Error> {
+    pub fn write_updates(&mut self) -> Result<(), std::io::Error> {
         if !self.changed {
             return self.lockfile.rollback();
         }
 
-        let mut lock = self.lockfile;
-        let mut writer: Checksum<&Lockfile> = Checksum::new(&lock);
+        let lock = &mut self.lockfile;
+        let mut writer: Checksum<&Lockfile> = Checksum::new(lock);
 
         let mut header_bytes: Vec<u8> = vec![];
         header_bytes.extend_from_slice(b"DIRC");
@@ -394,6 +414,11 @@ impl Index {
 
     pub fn is_tracked_path(&self, pathname: &str) -> bool {
         self.entries.contains_key(pathname) || self.parents.contains_key(pathname)
+    }
+
+    pub fn update_entry_stat(&mut self, entry: &mut Entry, stat: &fs::Metadata) {
+        entry.update_stat(stat);
+        self.changed = true;
     }
 }
 

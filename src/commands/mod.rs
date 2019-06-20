@@ -56,6 +56,7 @@ mod tests {
     use std::env;
     use std::fs::{self, File, OpenOptions};
     use std::io::Cursor;
+    use std::io::{Read, Write};
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::str;
@@ -153,6 +154,22 @@ mod tests {
 
         pub fn mkdir(&self, dir_name: &str) -> Result<(), std::io::Error> {
             fs::create_dir_all(self.repo_path.join(dir_name))
+        }
+
+        pub fn touch(&self, file_name: &str) -> Result<(), std::io::Error> {
+            let path = Path::new(&self.repo_path).join(file_name);
+            println!("touch {}", file_name);
+            let mut file = OpenOptions::new()
+                .read(true)
+                .append(false)
+                .create(false)
+                .open(&path)?;
+
+            let mut contents = vec![];
+            file.read_to_end(&mut contents);
+            file.write(&contents);
+
+            Ok(())
         }
 
         pub fn make_executable(&self, file_name: &str) -> Result<(), std::io::Error> {
