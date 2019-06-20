@@ -1,7 +1,8 @@
 use crate::commands::CommandContext;
+use crate::database::{Blob, Object};
 use crate::index;
 use crate::repository::Repository;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ where
     repo: Repository,
     stats: HashMap<String, fs::Metadata>,
     ctx: CommandContext<'a, I, O, E>,
-    changed: Vec<String>,
+    changed: BTreeSet<String>,
 }
 
 impl<'a, I, O, E> Status<'a, I, O, E>
@@ -40,7 +41,7 @@ where
             repo,
             stats: HashMap::new(),
             ctx: ctx,
-            changed: vec![],
+            changed: BTreeSet::new(),
         }
     }
 
@@ -51,7 +52,6 @@ where
         untracked_files.sort();
 
         self.detect_workspace_changes().unwrap();
-        self.changed.sort();
 
         for file in &self.changed {
             self.ctx
@@ -114,7 +114,19 @@ where
             .get(&entry.path)
             .expect("didn't find cached stat");
         if !entry.stat_match(stat) {
-            self.changed.push(entry.path.clone());
+            self.changed.insert(entry.path.clone());
+        }
+
+        let data = self
+            .repo
+            .workspace
+            .read_file(&entry.path)
+            .expect("failed to read file");
+        let blob = Blob::new(data.as_bytes());
+        let oid = blob.get_oid();
+
+        if entry.oid != oid {
+            self.changed.insert(entry.path.clone());
         }
     }
 
@@ -277,9 +289,19 @@ mod tests {
         let mut cmd_helper = CommandHelper::new();
         create_and_commit(&mut cmd_helper);
 
-        cmd_helper.make_executable("a/2.txt");
+        cmd_helper.make_executable("a/2.txt").unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status(" M a/2.txt\n");
+    }
+
+    #[test]
+    fn reports_modified_files_with_unchanged_size() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.write_file("a/b/3.txt", b"hello").unwrap();
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(" M a/b/3.txt\n");
     }
 
 }

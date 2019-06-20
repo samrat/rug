@@ -81,6 +81,7 @@ impl Workspace {
         Ok(files)
     }
 
+    // TODO: Should return bytes instead?
     pub fn read_file(&self, file_name: &str) -> Result<String, std::io::Error> {
         let file = File::open(self.path.as_path().join(file_name))?;
         let mut buf_reader = BufReader::new(file);
