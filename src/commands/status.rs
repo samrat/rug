@@ -2,10 +2,16 @@ use crate::commands::CommandContext;
 use crate::database::{Blob, Object};
 use crate::index;
 use crate::repository::Repository;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+enum ChangeType {
+    WorkspaceDeleted,
+    WorkspaceModified,
+}
 
 pub struct Status<'a, I, O, E>
 where
@@ -17,7 +23,9 @@ where
     repo: Repository,
     stats: HashMap<String, fs::Metadata>,
     ctx: CommandContext<'a, I, O, E>,
+    untracked: BTreeSet<String>,
     changed: BTreeSet<String>,
+    changes: HashMap<String, HashSet<ChangeType>>,
 }
 
 impl<'a, I, O, E> Status<'a, I, O, E>
@@ -41,8 +49,39 @@ where
             repo,
             stats: HashMap::new(),
             ctx: ctx,
+            untracked: BTreeSet::new(),
             changed: BTreeSet::new(),
+            changes: HashMap::new(),
         }
+    }
+
+    fn status_for(&self, path: &str) -> &str {
+        match self.changes.get(path) {
+            None => "  ",
+            Some(change_types) => {
+                if change_types.contains(&ChangeType::WorkspaceDeleted) {
+                    " D"
+                } else if change_types.contains(&ChangeType::WorkspaceModified) {
+                    " M"
+                } else {
+                    "  "
+                }
+            }
+        }
+    }
+
+    pub fn print_results(&mut self) -> Result<(), std::io::Error> {
+        for file in &self.changed {
+            self.ctx
+                .stdout
+                .write(format!("{} {}\n", self.status_for(file), file).as_bytes())?;
+        }
+
+        for file in &self.untracked {
+            self.ctx.stdout.write(format!("?? {}\n", file).as_bytes())?;
+        }
+
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), String> {
@@ -51,9 +90,7 @@ where
             .load_for_update()
             .expect("failed to load index");
 
-        let mut untracked_files = self.scan_workspace(&self.root_path.clone()).unwrap();
-        untracked_files.sort();
-
+        self.scan_workspace(&self.root_path.clone()).unwrap();
         self.detect_workspace_changes().unwrap();
 
         self.repo
@@ -61,31 +98,17 @@ where
             .write_updates()
             .expect("failed to write index");
 
-        for file in &self.changed {
-            self.ctx
-                .stdout
-                .write(format!(" M {}\n", file).as_bytes())
-                .unwrap();
-        }
-
-        for file in untracked_files {
-            self.ctx
-                .stdout
-                .write(format!("?? {}\n", file).as_bytes())
-                .unwrap();
-        }
+        self.print_results()
+            .expect("printing status results failed");
 
         Ok(())
     }
 
-    fn scan_workspace(&mut self, prefix: &Path) -> Result<Vec<String>, std::io::Error> {
-        let mut untracked = vec![];
+    fn scan_workspace(&mut self, prefix: &Path) -> Result<(), std::io::Error> {
         for (mut path, stat) in self.repo.workspace.list_dir(prefix)? {
             if self.repo.index.is_tracked_path(&path) {
                 if self.repo.workspace.is_dir(&path) {
-                    untracked.extend_from_slice(
-                        &self.scan_workspace(&self.repo.workspace.abs_path(&path))?,
-                    );
+                    self.scan_workspace(&self.repo.workspace.abs_path(&path))?;
                 } else {
                     // path is file
                     self.stats.insert(path.to_string(), stat);
@@ -94,11 +117,11 @@ where
                 if self.repo.workspace.is_dir(&path) {
                     path.push('/');
                 }
-                untracked.push(path);
+                self.untracked.insert(path);
             }
         }
 
-        Ok(untracked)
+        Ok(())
     }
 
     fn detect_workspace_changes(&mut self) -> Result<(), std::io::Error> {
@@ -116,32 +139,46 @@ where
         Ok(())
     }
 
+    fn record_change(&mut self, path: &str, change_type: ChangeType) {
+        self.changed.insert(path.to_string());
+
+        match self.changes.get_mut(path) {
+            Some(change_types) => {
+                change_types.insert(change_type);
+            }
+            None => {
+                let mut change_types = HashSet::new();
+                change_types.insert(change_type);
+                self.changes.insert(path.to_string(), change_types);
+            }
+        }
+    }
+
     /// Adds modified entries to self.changed
     fn check_index_entry(&mut self, mut entry: &mut index::Entry) {
-        let stat = self
-            .stats
-            .get(&entry.path)
-            .expect("didn't find cached stat");
-        if !entry.stat_match(stat) {
-            self.changed.insert(entry.path.clone());
-        }
+        if let Some(stat) = self.stats.get(&entry.path) {
+            if !entry.stat_match(&stat) {
+                return self.record_change(&entry.path, ChangeType::WorkspaceModified);
+            }
+            if entry.times_match(&stat) {
+                return;
+            }
 
-        if entry.times_match(stat) {
-            return;
-        }
+            let data = self
+                .repo
+                .workspace
+                .read_file(&entry.path)
+                .expect("failed to read file");
+            let blob = Blob::new(data.as_bytes());
+            let oid = blob.get_oid();
 
-        let data = self
-            .repo
-            .workspace
-            .read_file(&entry.path)
-            .expect("failed to read file");
-        let blob = Blob::new(data.as_bytes());
-        let oid = blob.get_oid();
-
-        if entry.oid == oid {
-            self.repo.index.update_entry_stat(&mut entry, stat);
+            if entry.oid == oid {
+                self.repo.index.update_entry_stat(&mut entry, &stat);
+            } else {
+                self.record_change(&entry.path, ChangeType::WorkspaceModified);
+            }
         } else {
-            self.changed.insert(entry.path.clone());
+            self.record_change(&entry.path, ChangeType::WorkspaceDeleted)
         }
     }
 
@@ -325,4 +362,26 @@ mod tests {
         cmd_helper.assert_status("");
     }
 
+    #[test]
+    fn reports_deleted_files() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.delete("a/2.txt").unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(" D a/2.txt\n");
+    }
+
+    #[test]
+    fn reports_files_in_deleted_dir() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.delete("a").unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(
+            " D a/2.txt
+ D a/b/3.txt\n",
+        );
+    }
 }

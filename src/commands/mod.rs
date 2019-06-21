@@ -57,7 +57,7 @@ mod tests {
     use std::env;
     use std::fs::{self, File, OpenOptions};
     use std::io::Cursor;
-    use std::io::{Read, Write};
+    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::str;
@@ -168,6 +168,16 @@ mod tests {
                 0,
             );
             filetime::set_file_times(path, now, now)
+        }
+
+        pub fn delete(&self, pathname: &str) -> Result<(), std::io::Error> {
+            let path = Path::new(&self.repo_path).join(pathname);
+
+            if path.is_dir() {
+                fs::remove_dir_all(path)
+            } else {
+                fs::remove_file(path)
+            }
         }
 
         pub fn make_executable(&self, file_name: &str) -> Result<(), std::io::Error> {
