@@ -121,20 +121,19 @@ impl Tree {
         };
     }
 
-    // TODO: Take closure that calls `database.store` as arg instead
-    // of taking `database`
-    pub fn traverse(&self, database: &Database) -> Result<(), std::io::Error> {
+    pub fn traverse<F>(&self, f: &F)
+    where
+        F: Fn(&Tree) -> (),
+    {
         // Do a postorder traversal(visit all children first, then
         // process `self`
         for (_name, entry) in self.entries.clone() {
             if let TreeEntry::Tree(tree) = entry {
-                tree.traverse(database)?;
+                tree.traverse(f);
             }
         }
 
-        database.store(self)?;
-
-        Ok(())
+        f(self);
     }
 }
 

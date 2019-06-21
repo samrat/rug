@@ -23,8 +23,11 @@ where
         .map(|(_path, idx_entry)| Entry::from(idx_entry))
         .collect();
     let root = Tree::build(&entries);
-    root.traverse(&repo.database)
-        .expect("Traversing tree to write to database failed");
+    root.traverse(&|tree| {
+        repo.database
+            .store(tree)
+            .expect("Traversing tree to write to database failed")
+    });
 
     let parent = repo.refs.read_head();
     let author_name = ctx
