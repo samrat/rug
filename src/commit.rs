@@ -1,7 +1,10 @@
 use chrono::Utc;
+use std::collections::HashMap;
+use std::str;
 
-use crate::database::Object;
+use crate::database::{Object, ParsedObject};
 
+#[derive(Debug, Clone)]
 pub struct Author {
     pub name: String,
     pub email: String,
@@ -18,6 +21,7 @@ impl Author {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Commit {
     pub parent: Option<String>,
     pub tree_oid: String,
@@ -59,5 +63,38 @@ impl Object for Commit {
         lines.push_str(&self.message);
 
         lines.as_bytes().to_vec()
+    }
+
+    fn parse(s: &[u8]) -> ParsedObject {
+        let mut s = str::from_utf8(s).expect("invalid utf-8");
+        let mut headers = HashMap::new();
+        // Parse headers
+        loop {
+            if let Some(newline) = s.find('\n') {
+                let line = &s[..newline];
+                s = &s[newline + 1..];
+
+                // Headers and commit message is separated by empty
+                // line
+                if line == "" {
+                    break;
+                }
+
+                let v: Vec<&str> = line.splitn(2, ' ').collect();
+                headers.insert(v[0], v[1]);
+            } else {
+                panic!("no body in commit");
+            }
+        }
+
+        ParsedObject::Commit(Commit::new(
+            &headers.get("parent").map(|s| s.to_string()),
+            headers.get("tree").expect("no tree header").to_string(),
+            Author {
+                name: "TODO".to_string(),
+                email: "TODO".to_string(),
+            },
+            s.to_string(),
+        ))
     }
 }

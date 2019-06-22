@@ -1,20 +1,34 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::str;
 
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 
+use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
+use crate::commit::Commit;
 use crate::index;
 use crate::util::*;
+
+const TREE_MODE: &'static str = "40000";
+
+#[derive(Debug)]
+pub enum ParsedObject {
+    Commit(Commit),
+    Blob(Blob),
+    Tree(Tree),
+}
 
 pub trait Object {
     fn r#type(&self) -> String;
     fn to_string(&self) -> Vec<u8>;
+
+    fn parse(s: &[u8]) -> ParsedObject;
 
     fn get_oid(&self) -> String {
         let mut hasher = Sha1::new();
@@ -36,6 +50,7 @@ pub trait Object {
     }
 }
 
+#[derive(Debug)]
 pub struct Blob {
     data: Vec<u8>,
 }
@@ -56,33 +71,44 @@ impl Object for Blob {
     fn to_string(&self) -> Vec<u8> {
         self.data.clone()
     }
+
+    fn parse(s: &[u8]) -> ParsedObject {
+        ParsedObject::Blob(Blob::new(s))
+    }
 }
 
 #[derive(Clone, Debug)]
-enum TreeEntry {
+pub enum TreeEntry {
     Entry(Entry),
     Tree(Tree),
 }
 
 impl TreeEntry {
-    fn mode(&self) -> &str {
+    pub fn mode(&self) -> &str {
         match self {
             TreeEntry::Entry(e) => e.mode(),
-            _ => "40000",
+            _ => TREE_MODE,
         }
     }
 
-    fn get_oid(&self) -> String {
+    pub fn get_oid(&self) -> String {
         match self {
             TreeEntry::Entry(e) => e.oid.clone(),
             TreeEntry::Tree(t) => t.get_oid(),
+        }
+    }
+
+    pub fn is_tree(&self) -> bool {
+        match self {
+            TreeEntry::Entry(e) => e.mode() == TREE_MODE,
+            _ => false,
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Tree {
-    entries: BTreeMap<String, TreeEntry>,
+    pub entries: BTreeMap<String, TreeEntry>,
 }
 
 impl Tree {
@@ -151,6 +177,46 @@ impl Object for Tree {
         }
         tree_vec
     }
+
+    fn parse(v: &[u8]) -> ParsedObject {
+        let mut entries: Vec<Entry> = vec![];
+
+        let mut vs = v;
+
+        while vs.len() > 0 {
+            let (mode, rest): (u32, &[u8]) = match vs
+                .splitn(2, |c| *c as char == ' ')
+                .collect::<Vec<&[u8]>>()
+                .as_slice()
+            {
+                &[mode, rest] => (
+                    u32::from_str_radix(str::from_utf8(mode).expect("invalid utf8"), 8)
+                        .expect("parsing mode failed"),
+                    rest,
+                ),
+                _ => panic!("EOF while parsing mode"),
+            };
+            vs = rest;
+
+            let (name, rest) = match vs
+                .splitn(2, |c| *c as char == '\u{0}')
+                .collect::<Vec<&[u8]>>()
+                .as_slice()
+            {
+                &[name_bytes, rest] => (str::from_utf8(name_bytes).expect("invalid utf8"), rest),
+                _ => panic!("EOF while parsing name")
+            };
+            vs = rest;
+
+            let (oid_bytes, rest) = vs.split_at(20);
+            vs = rest;
+
+            let oid = encode_hex(&oid_bytes);
+
+            entries.push(Entry::new(name, &oid, mode));
+        }
+        ParsedObject::Tree(Tree::build(&entries))
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -186,23 +252,84 @@ impl Entry {
     }
 
     fn mode(&self) -> &str {
+        if self.mode == 0o40000 {
+            return TREE_MODE;
+        }
         if self.is_executable() {
-            "100755"
+            return "100755";
         } else {
-            "100644"
+            return "100644";
         }
     }
 }
 
 pub struct Database {
     path: PathBuf,
+    objects: HashMap<String, ParsedObject>,
 }
 
 impl Database {
     pub fn new(path: &Path) -> Database {
         Database {
             path: path.to_path_buf(),
+            objects: HashMap::new(),
         }
+    }
+
+    pub fn read_object(&self, oid: &str) -> Option<ParsedObject> {
+        let mut contents = vec![];
+        let mut file = OpenOptions::new()
+            .read(true)
+            .create(false)
+            .open(self.object_path(oid))
+            .expect("failed to open file");
+        file.read_to_end(&mut contents)
+            .expect("reading file failed");
+
+        let mut z = ZlibDecoder::new(&contents[..]);
+        let mut v = vec![];
+        z.read_to_end(&mut v).unwrap();
+        let mut vs = &v[..];
+
+        let (obj_type, rest) = match vs
+            .splitn(2, |c| *c as char == ' ')
+            .collect::<Vec<&[u8]>>()
+            .as_slice()
+        {
+            &[type_bytes, rest] => (
+                str::from_utf8(type_bytes).expect("failed to parse type"),
+                rest,
+            ),
+            _ => panic!("EOF while parsing type"),
+        };
+        vs = rest;
+
+        let (_size, rest) = match vs
+            .splitn(2, |c| *c as char == '\u{0}')
+            .collect::<Vec<&[u8]>>()
+            .as_slice()
+        {
+            &[size_bytes, rest] => (
+                str::from_utf8(size_bytes).expect("failed to parse size"),
+                rest,
+            ),
+            _ => panic!("EOF while parsing size"),
+        };
+        vs = rest;
+
+        match obj_type {
+            "commit" => return Some(Commit::parse(&rest)),
+            "blob" => return Some(Blob::parse(&rest)),
+            "tree" => return Some(Tree::parse(&rest)),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn load(&mut self, oid: &str) -> &ParsedObject {
+        let o = self.read_object(oid);
+        self.objects.insert(oid.to_string(), o.unwrap());
+
+        self.objects.get(oid).unwrap()
     }
 
     pub fn store<T>(&self, obj: &T) -> Result<(), std::io::Error>
@@ -215,10 +342,15 @@ impl Database {
         self.write_object(oid, content)
     }
 
-    fn write_object(&self, oid: String, content: Vec<u8>) -> Result<(), std::io::Error> {
+    fn object_path(&self, oid: &str) -> PathBuf {
         let dir: &str = &oid[0..2];
         let filename: &str = &oid[2..];
-        let object_path = self.path.as_path().join(dir).join(filename);
+
+        self.path.as_path().join(dir).join(filename)
+    }
+
+    fn write_object(&self, oid: String, content: Vec<u8>) -> Result<(), std::io::Error> {
+        let object_path = self.object_path(&oid);
 
         // If object already exists, we are certain that the contents
         // have not changed. So there is no need to write it again.
