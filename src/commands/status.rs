@@ -1,6 +1,6 @@
 use crate::commands::CommandContext;
 use crate::commit::Commit;
-use crate::database::{Blob, Object, ParsedObject};
+use crate::database::{self, Blob, Object, ParsedObject};
 use crate::index;
 use crate::repository::Repository;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 enum ChangeType {
     WorkspaceDeleted,
     WorkspaceModified,
+    IndexAdded,
 }
 
 pub struct Status<'a, I, O, E>
@@ -27,6 +28,7 @@ where
     untracked: BTreeSet<String>,
     changed: BTreeSet<String>,
     changes: HashMap<String, HashSet<ChangeType>>,
+    head_tree: HashMap<String, database::TreeEntry>,
 }
 
 impl<'a, I, O, E> Status<'a, I, O, E>
@@ -53,22 +55,31 @@ where
             untracked: BTreeSet::new(),
             changed: BTreeSet::new(),
             changes: HashMap::new(),
+            head_tree: HashMap::new(),
         }
     }
 
-    fn status_for(&self, path: &str) -> &str {
+    fn status_for(&self, path: &str) -> String {
+        let mut left = " ";
+        let mut right = " ";
         match self.changes.get(path) {
-            None => "  ",
+            None => (),
             Some(change_types) => {
+                if change_types.contains(&ChangeType::IndexAdded) {
+                    left = "A";
+                }
+
                 if change_types.contains(&ChangeType::WorkspaceDeleted) {
-                    " D"
+                    right = "D";
                 } else if change_types.contains(&ChangeType::WorkspaceModified) {
-                    " M"
+                    right = "M"
                 } else {
-                    "  "
+                    right = " ";
                 }
             }
-        }
+        };
+
+        format!("{}{}", left, right)
     }
 
     pub fn print_results(&mut self) -> Result<(), std::io::Error> {
@@ -106,7 +117,8 @@ where
             .expect("failed to load index");
 
         self.scan_workspace(&self.root_path.clone()).unwrap();
-        self.detect_workspace_changes().unwrap();
+        self.load_head_tree();
+        self.check_index_entries();
 
         self.repo
             .index
@@ -117,6 +129,41 @@ where
             .expect("printing status results failed");
 
         Ok(())
+    }
+
+    fn load_head_tree(&mut self) {
+        let head_oid = self.repo.refs.read_head();
+        if let Some(head_oid) = head_oid {
+            let commit: Commit = {
+                if let ParsedObject::Commit(commit) = self.repo.database.load(&head_oid) {
+                    commit.clone()
+                } else {
+                    panic!("HEAD points to a non-commit");
+                }
+            };
+            self.read_tree(&commit.tree_oid, Path::new(""));
+        }
+    }
+
+    fn read_tree(&mut self, tree_oid: &str, prefix: &Path) {
+        let entries = {
+            if let ParsedObject::Tree(tree) = self.repo.database.load(tree_oid) {
+                tree.entries.clone()
+            } else {
+                BTreeMap::new()
+            }
+        };
+
+        for (name, entry) in entries {
+            let path = prefix.join(name);
+
+            if entry.is_tree() {
+                self.read_tree(&entry.get_oid(), &path);
+            } else {
+                self.head_tree
+                    .insert(path.to_str().unwrap().to_string(), entry);
+            }
+        }
     }
 
     fn scan_workspace(&mut self, prefix: &Path) -> Result<(), std::io::Error> {
@@ -139,7 +186,7 @@ where
         Ok(())
     }
 
-    fn detect_workspace_changes(&mut self) -> Result<(), std::io::Error> {
+    fn check_index_entries(&mut self) -> Result<(), std::io::Error> {
         let entries: Vec<index::Entry> = self
             .repo
             .index
@@ -148,7 +195,8 @@ where
             .map(|(_, entry)| entry.clone())
             .collect();
         for mut entry in entries {
-            self.check_index_entry(&mut entry);
+            self.check_index_against_workspace(&mut entry);
+            self.check_index_against_head_tree(&mut entry);
         }
 
         Ok(())
@@ -170,7 +218,7 @@ where
     }
 
     /// Adds modified entries to self.changed
-    fn check_index_entry(&mut self, mut entry: &mut index::Entry) {
+    fn check_index_against_workspace(&mut self, mut entry: &mut index::Entry) {
         if let Some(stat) = self.stats.get(&entry.path) {
             if !entry.stat_match(&stat) {
                 return self.record_change(&entry.path, ChangeType::WorkspaceModified);
@@ -194,6 +242,13 @@ where
             }
         } else {
             self.record_change(&entry.path, ChangeType::WorkspaceDeleted)
+        }
+    }
+
+    fn check_index_against_head_tree(&mut self, entry: &mut index::Entry) {
+        let item = self.head_tree.get(&entry.path);
+        if item.is_none() {
+            self.record_change(&entry.path, ChangeType::IndexAdded);
         }
     }
 
@@ -420,5 +475,25 @@ mod tests {
             " D a/2.txt
  D a/b/3.txt\n",
         );
+    }
+
+    #[test]
+    fn reports_file_added_to_tracked_dir() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.write_file("a/4.txt", b"four").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("A  a/4.txt\n");
+    }
+
+    #[test]
+    fn reports_file_added_to_untracked_dir() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.write_file("d/e/5.txt", b"five").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("A  d/e/5.txt\n");
     }
 }
