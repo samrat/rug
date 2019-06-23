@@ -13,6 +13,7 @@ enum ChangeType {
     WorkspaceDeleted,
     WorkspaceModified,
     IndexAdded,
+    IndexModified,
 }
 
 pub struct Status<'a, I, O, E>
@@ -67,6 +68,10 @@ where
             Some(change_types) => {
                 if change_types.contains(&ChangeType::IndexAdded) {
                     left = "A";
+                }
+
+                if change_types.contains(&ChangeType::IndexModified) {
+                    left = "M";
                 }
 
                 if change_types.contains(&ChangeType::WorkspaceDeleted) {
@@ -247,7 +252,11 @@ where
 
     fn check_index_against_head_tree(&mut self, entry: &mut index::Entry) {
         let item = self.head_tree.get(&entry.path);
-        if item.is_none() {
+        if let Some(item) = item {
+            if !(item.mode() == format!("{:o}", entry.mode) && item.get_oid() == entry.oid) {
+                self.record_change(&entry.path, ChangeType::IndexModified);
+            }
+        } else {
             self.record_change(&entry.path, ChangeType::IndexAdded);
         }
     }
@@ -495,5 +504,29 @@ mod tests {
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("A  d/e/5.txt\n");
+    }
+
+    #[test]
+    fn reports_files_with_modes_modified_between_head_and_index() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.make_executable("1.txt").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("M  1.txt\n");
+    }
+
+    #[test]
+    fn reports_files_with_contents_modified_between_head_and_index() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+
+        cmd_helper.write_file("a/b/3.txt", b"modified").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("M  a/b/3.txt\n");
     }
 }
