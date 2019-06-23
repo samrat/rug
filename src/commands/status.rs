@@ -14,6 +14,7 @@ enum ChangeType {
     WorkspaceModified,
     IndexAdded,
     IndexModified,
+    IndexDeleted,
 }
 
 pub struct Status<'a, I, O, E>
@@ -74,6 +75,10 @@ where
                     left = "M";
                 }
 
+                if change_types.contains(&ChangeType::IndexDeleted) {
+                    left = "D";
+                }
+
                 if change_types.contains(&ChangeType::WorkspaceDeleted) {
                     right = "D";
                 } else if change_types.contains(&ChangeType::WorkspaceModified) {
@@ -124,6 +129,7 @@ where
         self.scan_workspace(&self.root_path.clone()).unwrap();
         self.load_head_tree();
         self.check_index_entries();
+        self.collect_deleted_head_files();
 
         self.repo
             .index
@@ -134,6 +140,20 @@ where
             .expect("printing status results failed");
 
         Ok(())
+    }
+
+    fn collect_deleted_head_files(&mut self) {
+        let paths: Vec<String> = {
+            self.head_tree
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect()
+        };
+        for path in paths {
+            if !self.repo.index.is_tracked_path(&path) {
+                self.record_change(&path, ChangeType::IndexDeleted);
+            }
+        }
     }
 
     fn load_head_tree(&mut self) {
@@ -173,7 +193,7 @@ where
 
     fn scan_workspace(&mut self, prefix: &Path) -> Result<(), std::io::Error> {
         for (mut path, stat) in self.repo.workspace.list_dir(prefix)? {
-            if self.repo.index.is_tracked_path(&path) {
+            if self.repo.index.is_tracked(&path) {
                 if self.repo.workspace.is_dir(&path) {
                     self.scan_workspace(&self.repo.workspace.abs_path(&path))?;
                 } else {
@@ -264,7 +284,7 @@ where
     /// Check if path is trackable but not currently tracked
     fn is_trackable_path(&self, path: &str, stat: &fs::Metadata) -> Result<bool, std::io::Error> {
         if stat.is_file() {
-            return Ok(!self.repo.index.is_tracked_path(path));
+            return Ok(!self.repo.index.is_tracked(path));
         }
 
         let items = self
@@ -528,5 +548,32 @@ mod tests {
 
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("M  a/b/3.txt\n");
+    }
+
+    #[test]
+    fn reports_files_deleted_in_index() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.delete("1.txt").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("D  1.txt\n");
+    }
+
+    #[test]
+    fn reports_all_deleted_files_in_dir() {
+        let mut cmd_helper = CommandHelper::new();
+        create_and_commit(&mut cmd_helper);
+        cmd_helper.delete("a").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(
+            "D  a/2.txt
+D  a/b/3.txt\n",
+        );
     }
 }
