@@ -11,7 +11,6 @@ use std::io::{self, Write};
 
 mod lockfile;
 
-mod commit;
 mod database;
 mod index;
 mod refs;

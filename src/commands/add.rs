@@ -1,7 +1,11 @@
 use std::io::{self, Read, Write};
 
 use crate::commands::CommandContext;
-use crate::database::{Blob, Object};
+use crate::database::blob::Blob;
+
+use crate::database::object::Object;
+
+
 use crate::repository::Repository;
 
 static INDEX_LOAD_OR_CREATE_FAILED: &'static str = "fatal: could not create/load .git/index\n";

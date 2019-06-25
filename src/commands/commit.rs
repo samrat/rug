@@ -1,8 +1,11 @@
 use std::io::{Read, Write};
 
 use crate::commands::CommandContext;
-use crate::commit::{Author, Commit};
-use crate::database::{Entry, Object, Tree};
+
+use crate::database::commit::{Author, Commit};
+use crate::database::object::Object;
+use crate::database::tree::Tree;
+use crate::database::Entry;
 use crate::repository::Repository;
 
 pub fn commit_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>

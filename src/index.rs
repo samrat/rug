@@ -429,7 +429,8 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::{Blob, Object};
+    use crate::database::blob::Blob;
+    use crate::database::object::Object;
     use crate::repository::Repository;
     use rand::random;
     use std::process::Command;

@@ -1,6 +1,9 @@
 use crate::commands::CommandContext;
-use crate::commit::Commit;
-use crate::database::{self, Blob, Object, ParsedObject};
+use crate::database::blob::Blob;
+use crate::database::commit::Commit;
+use crate::database::object::Object;
+use crate::database::tree::TreeEntry;
+use crate::database::ParsedObject;
 use crate::index;
 use crate::repository::Repository;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -30,7 +33,7 @@ where
     untracked: BTreeSet<String>,
     changed: BTreeSet<String>,
     changes: HashMap<String, HashSet<ChangeType>>,
-    head_tree: HashMap<String, database::TreeEntry>,
+    head_tree: HashMap<String, TreeEntry>,
 }
 
 impl<'a, I, O, E> Status<'a, I, O, E>
@@ -293,28 +296,6 @@ where
         }
 
         return Ok(false);
-    }
-}
-
-fn show_tree(repo: &mut Repository, oid: &str, prefix: &Path) {
-    let b = BTreeMap::new();
-    let entries = {
-        if let ParsedObject::Tree(tree) = repo.database.load(oid) {
-            tree.entries.clone()
-        } else {
-            b
-        }
-    };
-
-    for (name, entry) in entries {
-        let path = prefix.join(name);
-
-        if entry.is_tree() {
-            show_tree(repo, &entry.get_oid(), &path);
-        } else {
-            let mode = entry.mode();
-            println!("{} {} {}", mode, entry.get_oid(), path.to_str().unwrap());
-        }
     }
 }
 
