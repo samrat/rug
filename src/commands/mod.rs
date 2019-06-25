@@ -66,11 +66,10 @@ mod tests {
     pub fn gen_repo_path() -> PathBuf {
         let mut temp_dir = generate_temp_name();
         temp_dir.push_str("_rug_test");
-        let repo_path = env::temp_dir()
+        env::temp_dir()
             .canonicalize()
             .expect("canonicalization failed")
-            .join(temp_dir);
-        repo_path.to_path_buf()
+            .join(temp_dir)
     }
 
     pub fn repo(repo_path: &Path) -> Repository {

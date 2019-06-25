@@ -14,7 +14,7 @@ impl Lockfile {
     pub fn new(path: &Path) -> Lockfile {
         Lockfile {
             file_path: path.to_path_buf(),
-            lock_path: path.with_extension("lock").to_path_buf(),
+            lock_path: path.with_extension("lock"),
             lock: None,
         }
     }

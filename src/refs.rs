@@ -16,7 +16,7 @@ impl Refs {
     }
 
     fn head_path(&self) -> PathBuf {
-        self.pathname.as_path().join("HEAD").to_path_buf()
+        (*self.pathname).join("HEAD")
     }
 
     pub fn update_head(&self, oid: &str) -> Result<(), std::io::Error> {
