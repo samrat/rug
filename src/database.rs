@@ -15,7 +15,7 @@ use crate::commit::Commit;
 use crate::index;
 use crate::util::*;
 
-const TREE_MODE: &'static str = "40000";
+const TREE_MODE: u32 = 0o40000;
 
 #[derive(Debug)]
 pub enum ParsedObject {
@@ -84,7 +84,7 @@ pub enum TreeEntry {
 }
 
 impl TreeEntry {
-    pub fn mode(&self) -> &str {
+    pub fn mode(&self) -> u32 {
         match self {
             TreeEntry::Entry(e) => e.mode(),
             _ => TREE_MODE,
@@ -171,7 +171,8 @@ impl Object for Tree {
     fn to_string(&self) -> Vec<u8> {
         let mut tree_vec = Vec::new();
         for (name, entry) in self.entries.iter() {
-            let mut entry_vec: Vec<u8> = format!("{} {}\0", entry.mode(), name).as_bytes().to_vec();
+            let mut entry_vec: Vec<u8> =
+                format!("{:o} {}\0", entry.mode(), name).as_bytes().to_vec();
             entry_vec.extend_from_slice(&decode_hex(&entry.get_oid()).expect("invalid oid"));
             tree_vec.extend_from_slice(&entry_vec);
         }
@@ -204,7 +205,7 @@ impl Object for Tree {
                 .as_slice()
             {
                 &[name_bytes, rest] => (str::from_utf8(name_bytes).expect("invalid utf8"), rest),
-                _ => panic!("EOF while parsing name")
+                _ => panic!("EOF while parsing name"),
             };
             vs = rest;
 
@@ -251,14 +252,14 @@ impl Entry {
         (self.mode >> 6) & 0b1 == 1
     }
 
-    fn mode(&self) -> &str {
-        if self.mode == 0o40000 {
+    fn mode(&self) -> u32 {
+        if self.mode == TREE_MODE {
             return TREE_MODE;
         }
         if self.is_executable() {
-            return "100755";
+            return 0o100755;
         } else {
-            return "100644";
+            return 0o100644;
         }
     }
 }

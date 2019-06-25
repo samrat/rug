@@ -107,20 +107,6 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        // {
-        //     let head_oid = self.repo.refs.read_head().unwrap();
-
-        //     let commit: Option<Commit> = {
-        //         if let ParsedObject::Commit(commit) = self.repo.database.load(&head_oid) {
-        //             let c = commit.clone();
-        //             Some(c)
-        //         } else {
-        //             None
-        //         }
-        //     };
-
-        //     show_tree(&mut self.repo, &commit.unwrap().tree_oid, Path::new(""));
-        // }
         self.repo
             .index
             .load_for_update()
@@ -273,7 +259,7 @@ where
     fn check_index_against_head_tree(&mut self, entry: &mut index::Entry) {
         let item = self.head_tree.get(&entry.path);
         if let Some(item) = item {
-            if !(item.mode() == format!("{:o}", entry.mode) && item.get_oid() == entry.oid) {
+            if !(item.mode() == entry.mode && item.get_oid() == entry.oid) {
                 self.record_change(&entry.path, ChangeType::IndexModified);
             }
         } else {
