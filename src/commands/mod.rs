@@ -222,7 +222,7 @@ mod tests {
         }
 
         pub fn assert_status(&mut self, expected: &str) {
-            if let Ok((stdout, _stderr)) = self.jit_cmd(&["status"]) {
+            if let Ok((stdout, _stderr)) = self.jit_cmd(&["status", "--porcelain"]) {
                 assert_output(&stdout, expected)
             } else {
                 assert!(false);

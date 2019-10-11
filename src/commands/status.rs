@@ -6,18 +6,42 @@ use crate::database::tree::TreeEntry;
 use crate::database::ParsedObject;
 use crate::index;
 use crate::repository::Repository;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+static LABEL_WIDTH: usize = 12;
+
+lazy_static! {
+    static ref SHORT_STATUS: HashMap<ChangeType, &'static str> = {
+        let mut m = HashMap::new();
+        m.insert(ChangeType::Added, "A");
+        m.insert(ChangeType::Modified, "M");
+        m.insert(ChangeType::Deleted, "D");
+        m
+    };
+
+    static ref LONG_STATUS: HashMap<ChangeType, &'static str> = {
+        let mut m = HashMap::new();
+        m.insert(ChangeType::Added, "new file:");
+        m.insert(ChangeType::Modified, "modified:");
+        m.insert(ChangeType::Deleted, "deleted:");
+        m
+    };
+}
+
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
 enum ChangeType {
-    WorkspaceDeleted,
-    WorkspaceModified,
-    IndexAdded,
-    IndexModified,
-    IndexDeleted,
+    Added,
+    Modified,
+    Deleted,
+}
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+enum ChangeKind {
+    Workspace,
+    Index,
 }
 
 pub struct Status<'a, I, O, E>
@@ -32,7 +56,8 @@ where
     ctx: CommandContext<'a, I, O, E>,
     untracked: BTreeSet<String>,
     changed: BTreeSet<String>,
-    changes: HashMap<String, HashSet<ChangeType>>,
+    workspace_changes: HashMap<String, ChangeType>,
+    index_changes: HashMap<String, ChangeType>,
     head_tree: HashMap<String, TreeEntry>,
 }
 
@@ -59,43 +84,27 @@ where
             ctx: ctx,
             untracked: BTreeSet::new(),
             changed: BTreeSet::new(),
-            changes: HashMap::new(),
+            workspace_changes: HashMap::new(),
+            index_changes: HashMap::new(),
             head_tree: HashMap::new(),
         }
     }
 
     fn status_for(&self, path: &str) -> String {
-        let mut left = " ";
-        let mut right = " ";
-        match self.changes.get(path) {
-            None => (),
-            Some(change_types) => {
-                if change_types.contains(&ChangeType::IndexAdded) {
-                    left = "A";
-                }
-
-                if change_types.contains(&ChangeType::IndexModified) {
-                    left = "M";
-                }
-
-                if change_types.contains(&ChangeType::IndexDeleted) {
-                    left = "D";
-                }
-
-                if change_types.contains(&ChangeType::WorkspaceDeleted) {
-                    right = "D";
-                } else if change_types.contains(&ChangeType::WorkspaceModified) {
-                    right = "M"
-                } else {
-                    right = " ";
-                }
-            }
+        let left = if let Some(index_change) = self.index_changes.get(path) {
+            SHORT_STATUS.get(index_change).unwrap_or(&" ")
+        } else {
+            " "
         };
-
+        let right = if let Some(workspace_change) = self.workspace_changes.get(path) {
+            SHORT_STATUS.get(workspace_change).unwrap_or(&" ")
+        } else {
+            " "
+        };
         format!("{}{}", left, right)
     }
 
-    pub fn print_results(&mut self) -> Result<(), std::io::Error> {
+    fn print_porcelain_format(&mut self) -> Result<(), std::io::Error> {
         for file in &self.changed {
             self.ctx
                 .stdout
@@ -107,6 +116,65 @@ where
         }
 
         Ok(())
+    }
+
+    fn print_long_format(&mut self) -> Result<(), std::io::Error> {
+        self.print_changes("Changes to be committed", &self.index_changes.clone());
+        self.print_changes("Changes not staged for commit", &self.workspace_changes.clone());
+        self.print_untracked_files("Untracked files", &self.untracked.clone());
+
+        self.print_commit_status();
+
+        Ok(())
+    }
+
+    fn print_changes(&mut self, message: &str, changeset: &HashMap<String, ChangeType>) {
+        self.ctx.stdout.write(format!("{}\n\n", message).as_bytes());
+
+        for (path, change_type) in changeset {
+            if let Some(status) = LONG_STATUS.get(change_type) {
+                self.ctx.stdout.write(format!("\t{:width$}{}\n", status, path, width=LABEL_WIDTH).as_bytes());
+            }
+        }
+
+        self.ctx.stdout.write("\n".as_bytes());
+    }
+
+    fn print_untracked_files(&mut self, message: &str, changeset: &BTreeSet<String>) {
+        self.ctx.stdout.write(format!("{}\n\n", message).as_bytes());
+
+        for path in changeset {
+            self.ctx.stdout.write(format!("\t{}\n", path).as_bytes());
+        }
+        self.ctx.stdout.write("\n".as_bytes());
+    }
+
+    pub fn print_results(&mut self) -> Result<(), std::io::Error> {
+        // TODO: strip off until actual args?
+        if self.ctx.args.len() > 2 &&
+            self.ctx.args[2] == "--porcelain" {
+            self.print_porcelain_format()?;
+        } else {
+            self.print_long_format()?;
+        }
+
+        Ok(())
+    }
+
+    fn print_commit_status(&mut self) {
+        if self.index_changes.len() > 0 {
+            return;
+        }
+
+        if self.workspace_changes.len() > 0 {
+            self.ctx.stdout.write("no changes added to commit\n".as_bytes());
+        } else if self.untracked.len() > 0 {
+            self.ctx.stdout.write("nothing added to commit but untracked files present\n".as_bytes());
+        } else {
+            self.ctx.stdout.write("nothing to commit, working tree clean\n".as_bytes());
+        }
+
+        
     }
 
     pub fn run(&mut self) -> Result<(), String> {
@@ -140,7 +208,7 @@ where
         };
         for path in paths {
             if !self.repo.index.is_tracked_path(&path) {
-                self.record_change(&path, ChangeType::IndexDeleted);
+                self.record_change(&path, ChangeKind::Index, ChangeType::Deleted);
             }
         }
     }
@@ -216,26 +284,26 @@ where
         Ok(())
     }
 
-    fn record_change(&mut self, path: &str, change_type: ChangeType) {
+    fn record_change(&mut self, path: &str, change_kind: ChangeKind, change_type: ChangeType) {
         self.changed.insert(path.to_string());
 
-        match self.changes.get_mut(path) {
-            Some(change_types) => {
-                change_types.insert(change_type);
-            }
-            None => {
-                let mut change_types = HashSet::new();
-                change_types.insert(change_type);
-                self.changes.insert(path.to_string(), change_types);
-            }
-        }
+        let changes_map = match change_kind {
+            ChangeKind::Index => &mut self.index_changes,
+            ChangeKind::Workspace => &mut self.workspace_changes,
+        };
+
+        changes_map.insert(path.to_string(), change_type);
     }
 
     /// Adds modified entries to self.changed
     fn check_index_against_workspace(&mut self, mut entry: &mut index::Entry) {
         if let Some(stat) = self.stats.get(&entry.path) {
             if !entry.stat_match(&stat) {
-                return self.record_change(&entry.path, ChangeType::WorkspaceModified);
+                return self.record_change(
+                    &entry.path,
+                    ChangeKind::Workspace,
+                    ChangeType::Modified,
+                );
             }
             if entry.times_match(&stat) {
                 return;
@@ -252,10 +320,10 @@ where
             if entry.oid == oid {
                 self.repo.index.update_entry_stat(&mut entry, &stat);
             } else {
-                self.record_change(&entry.path, ChangeType::WorkspaceModified);
+                self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Modified);
             }
         } else {
-            self.record_change(&entry.path, ChangeType::WorkspaceDeleted)
+            self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Deleted)
         }
     }
 
@@ -263,10 +331,10 @@ where
         let item = self.head_tree.get(&entry.path);
         if let Some(item) = item {
             if !(item.mode() == entry.mode && item.get_oid() == entry.oid) {
-                self.record_change(&entry.path, ChangeType::IndexModified);
+                self.record_change(&entry.path, ChangeKind::Index, ChangeType::Modified);
             }
         } else {
-            self.record_change(&entry.path, ChangeType::IndexAdded);
+            self.record_change(&entry.path, ChangeKind::Index, ChangeType::Added);
         }
     }
 
