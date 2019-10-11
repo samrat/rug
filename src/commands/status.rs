@@ -6,6 +6,7 @@ use crate::database::tree::TreeEntry;
 use crate::database::ParsedObject;
 use crate::index;
 use crate::repository::Repository;
+use colored::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::{Read, Write};
@@ -21,7 +22,6 @@ lazy_static! {
         m.insert(ChangeType::Deleted, "D");
         m
     };
-
     static ref LONG_STATUS: HashMap<ChangeType, &'static str> = {
         let mut m = HashMap::new();
         m.insert(ChangeType::Added, "new file:");
@@ -106,9 +106,7 @@ where
 
     fn print_porcelain_format(&mut self) -> Result<(), std::io::Error> {
         for file in &self.changed {
-            self.ctx
-                .stdout
-                .write(format!("{} {}\n", self.status_for(file), file).as_bytes())?;
+            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file)?;
         }
 
         for file in &self.untracked {
@@ -119,40 +117,56 @@ where
     }
 
     fn print_long_format(&mut self) -> Result<(), std::io::Error> {
-        self.print_changes("Changes to be committed", &self.index_changes.clone());
-        self.print_changes("Changes not staged for commit", &self.workspace_changes.clone());
-        self.print_untracked_files("Untracked files", &self.untracked.clone());
+        self.print_changes(
+            "Changes to be committed",
+            &self.index_changes.clone(),
+            "green",
+        );
+        self.print_changes(
+            "Changes not staged for commit",
+            &self.workspace_changes.clone(),
+            "red",
+        );
+        self.print_untracked_files("Untracked files", &self.untracked.clone(), "red");
 
         self.print_commit_status();
 
         Ok(())
     }
 
-    fn print_changes(&mut self, message: &str, changeset: &BTreeMap<String, ChangeType>) {
+    fn print_changes(
+        &mut self,
+        message: &str,
+        changeset: &BTreeMap<String, ChangeType>,
+        style: &str,
+    ) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
         for (path, change_type) in changeset {
             if let Some(status) = LONG_STATUS.get(change_type) {
-                writeln!(self.ctx.stdout, "\t{:width$}{}", status, path, width=LABEL_WIDTH);
+                writeln!(
+                    self.ctx.stdout,
+                    "{}",
+                    format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
+                );
             }
         }
 
         writeln!(self.ctx.stdout, "");
     }
 
-    fn print_untracked_files(&mut self, message: &str, changeset: &BTreeSet<String>) {
+    fn print_untracked_files(&mut self, message: &str, changeset: &BTreeSet<String>, style: &str) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
         for path in changeset {
-            writeln!(self.ctx.stdout, "\t{}", path);
+            writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style));
         }
         writeln!(self.ctx.stdout, "");
     }
 
     pub fn print_results(&mut self) -> Result<(), std::io::Error> {
         // TODO: strip off until actual args?
-        if self.ctx.args.len() > 2 &&
-            self.ctx.args[2] == "--porcelain" {
+        if self.ctx.args.len() > 2 && self.ctx.args[2] == "--porcelain" {
             self.print_porcelain_format()?;
         } else {
             self.print_long_format()?;
@@ -169,7 +183,10 @@ where
         if self.workspace_changes.len() > 0 {
             writeln!(self.ctx.stdout, "no changes added to commit");
         } else if self.untracked.len() > 0 {
-            writeln!(self.ctx.stdout, "nothing added to commit but untracked files present");
+            writeln!(
+                self.ctx.stdout,
+                "nothing added to commit but untracked files present"
+            );
         } else {
             writeln!(self.ctx.stdout, "nothing to commit, working tree clean");
         }
