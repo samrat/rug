@@ -112,7 +112,7 @@ where
         }
 
         for file in &self.untracked {
-            self.ctx.stdout.write(format!("?? {}\n", file).as_bytes())?;
+            writeln!(self.ctx.stdout, "?? {}", file);
         }
 
         Ok(())
@@ -129,24 +129,24 @@ where
     }
 
     fn print_changes(&mut self, message: &str, changeset: &BTreeMap<String, ChangeType>) {
-        self.ctx.stdout.write(format!("{}\n\n", message).as_bytes());
+        writeln!(self.ctx.stdout, "{}\n", message);
 
         for (path, change_type) in changeset {
             if let Some(status) = LONG_STATUS.get(change_type) {
-                self.ctx.stdout.write(format!("\t{:width$}{}\n", status, path, width=LABEL_WIDTH).as_bytes());
+                writeln!(self.ctx.stdout, "\t{:width$}{}", status, path, width=LABEL_WIDTH);
             }
         }
 
-        self.ctx.stdout.write("\n".as_bytes());
+        writeln!(self.ctx.stdout, "");
     }
 
     fn print_untracked_files(&mut self, message: &str, changeset: &BTreeSet<String>) {
-        self.ctx.stdout.write(format!("{}\n\n", message).as_bytes());
+        writeln!(self.ctx.stdout, "{}\n", message);
 
         for path in changeset {
-            self.ctx.stdout.write(format!("\t{}\n", path).as_bytes());
+            writeln!(self.ctx.stdout, "\t{}", path);
         }
-        self.ctx.stdout.write("\n".as_bytes());
+        writeln!(self.ctx.stdout, "");
     }
 
     pub fn print_results(&mut self) -> Result<(), std::io::Error> {
@@ -167,14 +167,12 @@ where
         }
 
         if self.workspace_changes.len() > 0 {
-            self.ctx.stdout.write("no changes added to commit\n".as_bytes());
+            writeln!(self.ctx.stdout, "no changes added to commit");
         } else if self.untracked.len() > 0 {
-            self.ctx.stdout.write("nothing added to commit but untracked files present\n".as_bytes());
+            writeln!(self.ctx.stdout, "nothing added to commit but untracked files present");
         } else {
-            self.ctx.stdout.write("nothing to commit, working tree clean\n".as_bytes());
+            writeln!(self.ctx.stdout, "nothing to commit, working tree clean");
         }
-
-        
     }
 
     pub fn run(&mut self) -> Result<(), String> {

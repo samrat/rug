@@ -22,9 +22,11 @@ where
         fs::create_dir_all(git_path.join(d)).expect("failed to create dir");
     }
 
-    ctx.stdout
-        .write_all(format!("Initialized empty Jit repository in {:?}\n", git_path).as_bytes())
-        .unwrap();
+    writeln!(
+        ctx.stdout,
+        "Initialized empty Jit repository in {:?}\n",
+        git_path
+    );
 
     Ok(())
 }
