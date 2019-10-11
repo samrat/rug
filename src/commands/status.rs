@@ -56,8 +56,8 @@ where
     ctx: CommandContext<'a, I, O, E>,
     untracked: BTreeSet<String>,
     changed: BTreeSet<String>,
-    workspace_changes: HashMap<String, ChangeType>,
-    index_changes: HashMap<String, ChangeType>,
+    workspace_changes: BTreeMap<String, ChangeType>,
+    index_changes: BTreeMap<String, ChangeType>,
     head_tree: HashMap<String, TreeEntry>,
 }
 
@@ -84,8 +84,8 @@ where
             ctx: ctx,
             untracked: BTreeSet::new(),
             changed: BTreeSet::new(),
-            workspace_changes: HashMap::new(),
-            index_changes: HashMap::new(),
+            workspace_changes: BTreeMap::new(),
+            index_changes: BTreeMap::new(),
             head_tree: HashMap::new(),
         }
     }
@@ -128,7 +128,7 @@ where
         Ok(())
     }
 
-    fn print_changes(&mut self, message: &str, changeset: &HashMap<String, ChangeType>) {
+    fn print_changes(&mut self, message: &str, changeset: &BTreeMap<String, ChangeType>) {
         self.ctx.stdout.write(format!("{}\n\n", message).as_bytes());
 
         for (path, change_type) in changeset {
