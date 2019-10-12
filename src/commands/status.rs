@@ -117,16 +117,8 @@ where
     }
 
     fn print_long_format(&mut self) -> Result<(), std::io::Error> {
-        self.print_changes(
-            "Changes to be committed",
-            &self.index_changes.clone(),
-            "green",
-        );
-        self.print_changes(
-            "Changes not staged for commit",
-            &self.workspace_changes.clone(),
-            "red",
-        );
+        self.print_index_changes("Changes to be committed", "green");
+        self.print_workspace_changes("Changes not staged for commit", "red");
         self.print_untracked_files("Untracked files", &self.untracked.clone(), "red");
 
         self.print_commit_status();
@@ -134,15 +126,26 @@ where
         Ok(())
     }
 
-    fn print_changes(
-        &mut self,
-        message: &str,
-        changeset: &BTreeMap<String, ChangeType>,
-        style: &str,
-    ) {
+    fn print_index_changes(&mut self, message: &str, style: &str) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
-        for (path, change_type) in changeset {
+        for (path, change_type) in &self.index_changes {
+            if let Some(status) = LONG_STATUS.get(change_type) {
+                writeln!(
+                    self.ctx.stdout,
+                    "{}",
+                    format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
+                );
+            }
+        }
+
+        writeln!(self.ctx.stdout, "");
+    }
+
+    fn print_workspace_changes(&mut self, message: &str, style: &str) {
+        writeln!(self.ctx.stdout, "{}\n", message);
+
+        for (path, change_type) in &self.workspace_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
                 writeln!(
                     self.ctx.stdout,
