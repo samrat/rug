@@ -18,10 +18,18 @@ mod repository;
 mod util;
 mod workspace;
 
+mod diff;
+use diff::Diff;
+
 mod commands;
 use commands::{execute, CommandContext};
 
 fn main() {
+    // let diff = Diff::diff(vec!["A", "B", "C", "A", "B", "B", "A"], vec!["C", "B", "A", "B", "A", "C"]);
+    // for e in diff {
+    //     println!("{}", e);
+    // }
+
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
         dir: env::current_dir().unwrap(),
