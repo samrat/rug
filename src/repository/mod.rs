@@ -1,5 +1,7 @@
 use std::path::Path;
 
+pub mod status;
+
 use crate::database::Database;
 use crate::index::Index;
 use crate::refs::Refs;
