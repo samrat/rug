@@ -1,7 +1,8 @@
 use crate::commands::CommandContext;
 use crate::database::blob::Blob;
 use crate::database::object::Object;
-use crate::database::Database;
+use crate::database::{Database, ParsedObject};
+use crate::diff;
 use crate::repository::{ChangeType, Repository};
 use std::fs;
 use std::io::{Read, Write};
@@ -25,6 +26,7 @@ struct Target {
     path: String,
     oid: String,
     mode: Option<u32>,
+    data: String,
 }
 
 impl<'a, I, O, E> Diff<'a, I, O, E>
@@ -58,13 +60,17 @@ where
         for (path, state) in &self.repo.index_changes.clone() {
             match state {
                 ChangeType::Added => {
-                    self.print_diff(self.from_nothing(path), self.from_index(path))
+                    let b = self.from_index(path);
+                    self.print_diff(self.from_nothing(path), b)
                 }
                 ChangeType::Modified => {
-                    self.print_diff(self.from_head(path), self.from_index(path))
+                    let a = self.from_head(path);
+                    let b = self.from_index(path);
+                    self.print_diff(a, b)
                 }
                 ChangeType::Deleted => {
-                    self.print_diff(self.from_head(path), self.from_nothing(path))
+                    let a = self.from_head(path);
+                    self.print_diff(a, self.from_nothing(path))
                 }
                 _ => panic!("NYI"),
             }
@@ -74,14 +80,14 @@ where
     fn diff_index_workspace(&mut self) {
         for (path, state) in &self.repo.workspace_changes.clone() {
             match state {
-                ChangeType::Added => {
-                    self.print_diff(self.from_nothing(path), self.from_file(path))
-                },
+                ChangeType::Added => self.print_diff(self.from_nothing(path), self.from_file(path)),
                 ChangeType::Modified => {
-                    self.print_diff(self.from_index(path), self.from_file(path))
+                    let a = self.from_index(path);
+                    self.print_diff(a, self.from_file(path))
                 }
                 ChangeType::Deleted => {
-                    self.print_diff(self.from_index(path), self.from_nothing(path))
+                    let a = self.from_index(path);
+                    self.print_diff(a, self.from_nothing(path))
                 }
                 _ => panic!("NYI"),
             }
@@ -146,18 +152,32 @@ where
         );
         writeln!(self.ctx.stdout, "--- {}", a.path);
         writeln!(self.ctx.stdout, "+++ {}", b.path);
+
+        let edits = diff::Diff::diff(&a.data, &b.data);
+        for e in edits {
+            writeln!(self.ctx.stdout, "{}", e);
+        }
     }
 
-    fn from_index(&self, path: &str) -> Target {
+    fn from_index(&mut self, path: &str) -> Target {
         let entry = self
             .repo
             .index
             .entry_for_path(path)
             .expect("Path not found in index");
+        let oid = entry.oid.clone();
+        let blob = match self.repo.database.load(&oid) {
+            ParsedObject::Blob(blob) => blob,
+            _ => panic!("path is not a blob"),
+        };
+
         Target {
             path: path.to_string(),
-            oid: entry.oid.clone(),
+            oid,
             mode: Some(entry.mode),
+            data: std::str::from_utf8(&blob.data)
+                .expect("utf8 conversion failed")
+                .to_string(),
         }
     }
 
@@ -175,6 +195,9 @@ where
             path: path.to_string(),
             oid,
             mode: Some(mode),
+            data: std::str::from_utf8(&blob.data)
+                .expect("utf8 conversion failed")
+                .to_string(),
         }
     }
 
@@ -183,10 +206,11 @@ where
             path: path.to_string(),
             oid: NULL_OID.to_string(),
             mode: None,
+            data: "".to_string(),
         }
     }
 
-    fn from_head(&self, path: &str) -> Target {
+    fn from_head(&mut self, path: &str) -> Target {
         let entry = self
             .repo
             .head_tree
@@ -194,10 +218,18 @@ where
             .expect("Path not found in HEAD");
         let oid = entry.get_oid();
         let mode = entry.mode();
+        let blob = match self.repo.database.load(&oid) {
+            ParsedObject::Blob(blob) => blob,
+            _ => panic!("path is not a blob"),
+        };
+
         Target {
             path: path.to_string(),
             oid,
             mode: Some(mode),
+            data: std::str::from_utf8(&blob.data)
+                .expect("utf8 conversion failed")
+                .to_string(),
         }
     }
 }

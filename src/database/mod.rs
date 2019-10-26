@@ -4,9 +4,6 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str;
 
-
-
-
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;

@@ -3,7 +3,7 @@ use crate::database::ParsedObject;
 
 #[derive(Debug)]
 pub struct Blob {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 impl Blob {
