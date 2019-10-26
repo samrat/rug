@@ -38,7 +38,7 @@ pub struct Repository {
     pub changed: BTreeSet<String>,
     pub workspace_changes: BTreeMap<String, ChangeType>,
     pub index_changes: BTreeMap<String, ChangeType>,
-    head_tree: HashMap<String, TreeEntry>,
+    pub head_tree: HashMap<String, TreeEntry>,
 }
 
 impl Repository {

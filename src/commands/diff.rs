@@ -45,8 +45,38 @@ where
         self.repo.index.load();
         self.repo.initialize_status();
 
+        if self.ctx.args.len() > 2 && self.ctx.args[2] == "--cached" {
+            self.diff_head_index()
+        } else {
+            self.diff_index_workspace()
+        }
+
+        Ok(())
+    }
+
+    fn diff_head_index(&mut self) {
+        for (path, state) in &self.repo.index_changes.clone() {
+            match state {
+                ChangeType::Added => {
+                    self.print_diff(self.from_nothing(path), self.from_index(path))
+                }
+                ChangeType::Modified => {
+                    self.print_diff(self.from_head(path), self.from_index(path))
+                }
+                ChangeType::Deleted => {
+                    self.print_diff(self.from_head(path), self.from_nothing(path))
+                }
+                _ => panic!("NYI"),
+            }
+        }
+    }
+
+    fn diff_index_workspace(&mut self) {
         for (path, state) in &self.repo.workspace_changes.clone() {
             match state {
+                ChangeType::Added => {
+                    self.print_diff(self.from_nothing(path), self.from_file(path))
+                },
                 ChangeType::Modified => {
                     self.print_diff(self.from_index(path), self.from_file(path))
                 }
@@ -56,7 +86,6 @@ where
                 _ => panic!("NYI"),
             }
         }
-        Ok(())
     }
 
     fn print_diff(&mut self, mut a: Target, mut b: Target) {
@@ -73,7 +102,13 @@ where
     }
 
     fn print_diff_mode(&mut self, a: &Target, b: &Target) {
-        if b.mode == None {
+        if a.mode == None {
+            writeln!(
+                self.ctx.stdout,
+                "new file mode {:o}",
+                b.mode.expect("missing mode")
+            );
+        } else if b.mode == None {
             writeln!(
                 self.ctx.stdout,
                 "deleted file mode {:o}",
@@ -148,6 +183,21 @@ where
             path: path.to_string(),
             oid: NULL_OID.to_string(),
             mode: None,
+        }
+    }
+
+    fn from_head(&self, path: &str) -> Target {
+        let entry = self
+            .repo
+            .head_tree
+            .get(path)
+            .expect("Path not found in HEAD");
+        let oid = entry.get_oid();
+        let mode = entry.mode();
+        Target {
+            path: path.to_string(),
+            oid,
+            mode: Some(mode),
         }
     }
 }
