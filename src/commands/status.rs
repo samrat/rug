@@ -1,7 +1,5 @@
 use crate::commands::CommandContext;
-use crate::repository::status;
-use crate::repository::status::ChangeType;
-use crate::repository::Repository;
+use crate::repository::{ChangeType, Repository};
 use colored::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{Read, Write};
@@ -32,8 +30,7 @@ where
     O: Write,
     E: Write,
 {
-    // repo: Repository,
-    status: status::Status,
+    repo: Repository,
     ctx: CommandContext<'a, I, O, E>,
 }
 
@@ -51,23 +48,21 @@ where
     {
         let working_dir = &ctx.dir;
         let root_path = working_dir.as_path();
-        let repo = Repository::new(&root_path.join(".git"));
-        let status = status::Status::new(repo, working_dir.to_path_buf());
+        let repo = Repository::new(&root_path);
 
         Status {
-            // repo,
-            status,
+            repo,
             ctx: ctx,
         }
     }
 
     fn status_for(&self, path: &str) -> String {
-        let left = if let Some(index_change) = self.status.index_changes.get(path) {
+        let left = if let Some(index_change) = self.repo.index_changes.get(path) {
             SHORT_STATUS.get(index_change).unwrap_or(&" ")
         } else {
             " "
         };
-        let right = if let Some(workspace_change) = self.status.workspace_changes.get(path) {
+        let right = if let Some(workspace_change) = self.repo.workspace_changes.get(path) {
             SHORT_STATUS.get(workspace_change).unwrap_or(&" ")
         } else {
             " "
@@ -76,11 +71,11 @@ where
     }
 
     fn print_porcelain_format(&mut self) -> Result<(), std::io::Error> {
-        for file in &self.status.changed {
+        for file in &self.repo.changed {
             writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file)?;
         }
 
-        for file in &self.status.untracked {
+        for file in &self.repo.untracked {
             writeln!(self.ctx.stdout, "?? {}", file);
         }
 
@@ -100,7 +95,7 @@ where
     fn print_index_changes(&mut self, message: &str, style: &str) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
-        for (path, change_type) in &self.status.index_changes {
+        for (path, change_type) in &self.repo.index_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
                 writeln!(
                     self.ctx.stdout,
@@ -116,7 +111,7 @@ where
     fn print_workspace_changes(&mut self, message: &str, style: &str) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
-        for (path, change_type) in &self.status.workspace_changes {
+        for (path, change_type) in &self.repo.workspace_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
                 writeln!(
                     self.ctx.stdout,
@@ -132,7 +127,7 @@ where
     fn print_untracked_files(&mut self, message: &str, style: &str) {
         writeln!(self.ctx.stdout, "{}\n", message);
 
-        for path in &self.status.untracked {
+        for path in &self.repo.untracked {
             writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style));
         }
         writeln!(self.ctx.stdout, "");
@@ -150,13 +145,13 @@ where
     }
 
     fn print_commit_status(&mut self) {
-        if self.status.index_changes.len() > 0 {
+        if self.repo.index_changes.len() > 0 {
             return;
         }
 
-        if self.status.workspace_changes.len() > 0 {
+        if self.repo.workspace_changes.len() > 0 {
             writeln!(self.ctx.stdout, "no changes added to commit");
-        } else if self.status.untracked.len() > 0 {
+        } else if self.repo.untracked.len() > 0 {
             writeln!(
                 self.ctx.stdout,
                 "nothing added to commit but untracked files present"
@@ -167,16 +162,14 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        self.status
-            .repo
+        self.repo
             .index
             .load_for_update()
             .expect("failed to load index");
 
-        self.status.initialize();
+        self.repo.initialize_status();
 
-        self.status
-            .repo
+        self.repo
             .index
             .write_updates()
             .expect("failed to write index");

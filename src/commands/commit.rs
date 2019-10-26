@@ -16,7 +16,7 @@ where
 {
     let working_dir = ctx.dir;
     let root_path = working_dir.as_path();
-    let mut repo = Repository::new(&root_path.join(".git"));
+    let mut repo = Repository::new(&root_path);
 
     repo.index.load().expect("loading .git/index failed");
     let entries: Vec<Entry> = repo
