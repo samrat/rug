@@ -1,9 +1,8 @@
 use crate::commands::CommandContext;
 use crate::repository::{ChangeType, Repository};
 use colored::*;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
 
 static LABEL_WIDTH: usize = 12;
 

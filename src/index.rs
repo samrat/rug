@@ -424,6 +424,10 @@ impl Index {
         entry.update_stat(stat);
         self.changed = true;
     }
+
+    pub fn entry_for_path(&self, path: &str) -> Option<&Entry> {
+        self.entries.get(path)
+    }
 }
 
 #[cfg(test)]

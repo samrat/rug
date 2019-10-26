@@ -190,4 +190,8 @@ impl Database {
         fs::rename(temp_path, object_path)?;
         Ok(())
     }
+
+    pub fn short_oid(oid: &str) -> &str {
+        &oid[0..6]
+    }
 }

@@ -10,6 +10,8 @@ mod commit;
 use commit::commit_command;
 mod status;
 use status::Status;
+mod diff;
+use diff::Diff;
 
 #[derive(Debug)]
 pub struct CommandContext<'a, I, O, E>
@@ -43,7 +45,11 @@ where
         "status" => {
             let mut cmd = Status::new(ctx);
             cmd.run()
-        }
+        },
+        "diff" => {
+            let mut cmd = Diff::new(ctx);
+            cmd.run()
+        },
         _ => Err(format!("invalid command: {}\n", command)),
     }
 }
