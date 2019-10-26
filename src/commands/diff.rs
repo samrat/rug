@@ -21,6 +21,12 @@ where
     ctx: CommandContext<'a, I, O, E>,
 }
 
+struct Target {
+    path: String,
+    oid: String,
+    mode: Option<u32>,
+}
+
 impl<'a, I, O, E> Diff<'a, I, O, E>
 where
     I: Read,
@@ -41,24 +47,86 @@ where
 
         for (path, state) in &self.repo.workspace_changes.clone() {
             match state {
-                ChangeType::Modified => self.diff_file_modified(&path),
-                ChangeType::Deleted => self.diff_file_deleted(&path),
+                ChangeType::Modified => {
+                    self.print_diff(self.from_index(path), self.from_file(path))
+                }
+                ChangeType::Deleted => {
+                    self.print_diff(self.from_index(path), self.from_nothing(path))
+                }
                 _ => panic!("NYI"),
             }
         }
         Ok(())
     }
 
-    fn diff_file_modified(&mut self, path: &str) {
+    fn print_diff(&mut self, mut a: Target, mut b: Target) {
+        if a.oid == b.oid && a.mode == b.mode {
+            return;
+        }
+
+        a.path = format!("a/{}", a.path);
+        b.path = format!("b/{}", b.path);
+
+        writeln!(self.ctx.stdout, "diff --git {} {}", a.path, b.path);
+        self.print_diff_mode(&a, &b);
+        self.print_diff_content(&a, &b);
+    }
+
+    fn print_diff_mode(&mut self, a: &Target, b: &Target) {
+        if b.mode == None {
+            writeln!(
+                self.ctx.stdout,
+                "deleted file mode {:o}",
+                a.mode.expect("missing mode")
+            );
+        } else if a.mode != b.mode {
+            writeln!(
+                self.ctx.stdout,
+                "old mode {:o}",
+                a.mode.expect("missing mode")
+            );
+            writeln!(
+                self.ctx.stdout,
+                "new mode {:o}",
+                b.mode.expect("missing mode")
+            );
+        }
+    }
+
+    fn print_diff_content(&mut self, a: &Target, b: &Target) {
+        if a.oid == b.oid {
+            return;
+        }
+
+        writeln!(
+            self.ctx.stdout,
+            "index {} {}{}",
+            short(&a.oid),
+            short(&b.oid),
+            if a.mode == b.mode {
+                format!(" {:o}", a.mode.expect("Missing mode"))
+            } else {
+                format!("")
+            }
+        );
+        writeln!(self.ctx.stdout, "--- {}", a.path);
+        writeln!(self.ctx.stdout, "+++ {}", b.path);
+    }
+
+    fn from_index(&self, path: &str) -> Target {
         let entry = self
             .repo
             .index
             .entry_for_path(path)
             .expect("Path not found in index");
-        let a_oid = &entry.oid;
-        let a_mode = &entry.mode;
-        let a_path = format!("a/{}", path);
+        Target {
+            path: path.to_string(),
+            oid: entry.oid.clone(),
+            mode: Some(entry.mode),
+        }
+    }
 
+    fn from_file(&self, path: &str) -> Target {
         let blob = Blob::new(
             self.repo
                 .workspace
@@ -66,55 +134,21 @@ where
                 .expect("Failed to read file")
                 .as_bytes(),
         );
-        let b_oid = blob.get_oid();
-        let b_path = format!("b/{}", path);
-        let b_mode = self.repo.stats.get(path).unwrap().mode();
-
-        writeln!(self.ctx.stdout, "diff --git {} {}", a_path, b_path);
-
-        if a_mode != &b_mode {
-            writeln!(self.ctx.stdout, "old mode {:o}", a_mode);
-            writeln!(self.ctx.stdout, "mew mode {:o}", b_mode);
+        let oid = blob.get_oid();
+        let mode = self.repo.stats.get(path).unwrap().mode();
+        Target {
+            path: path.to_string(),
+            oid,
+            mode: Some(mode),
         }
-
-        if a_oid == &b_oid {
-            return;
-        }
-
-        writeln!(
-            self.ctx.stdout,
-            "index {} {}{}",
-            short(&a_oid),
-            short(&b_oid),
-            if a_mode == &b_mode {
-                format!(" {:o}", a_mode)
-            } else {
-                format!("")
-            }
-        );
-
-        writeln!(self.ctx.stdout, "--- {}", a_path);
-        writeln!(self.ctx.stdout, "+++ {}", b_path);
     }
 
-    fn diff_file_deleted(&mut self, path: &str) {
-        let entry = self
-            .repo
-            .index
-            .entry_for_path(path)
-            .expect("Path not found in index");
-        let a_oid = &entry.oid;
-        let a_mode = &entry.mode;
-        let a_path = format!("a/{}", path);
-
-        let b_oid = NULL_OID;
-        let b_path = format!("b/{}", path);
-
-        writeln!(self.ctx.stdout, "diff --git {} {}", a_path, b_path);
-        writeln!(self.ctx.stdout, "deleted file mode {:o}", a_mode);
-        writeln!(self.ctx.stdout, "index {} {}", short(&a_oid), short(&b_oid),);
-        writeln!(self.ctx.stdout, "--- {}", a_path);
-        writeln!(self.ctx.stdout, "+++ {}", NULL_PATH);
+    fn from_nothing(&self, path: &str) -> Target {
+        Target {
+            path: path.to_string(),
+            oid: NULL_OID.to_string(),
+            mode: None,
+        }
     }
 }
 
