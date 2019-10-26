@@ -442,7 +442,7 @@ mod tests {
         temp_dir.push_str("_jit_test");
 
         let root_path = Path::new("/tmp").join(temp_dir);
-        let mut repo = Repository::new(&root_path.join(".git"));
+        let mut repo = Repository::new(&root_path);
         fs::create_dir(&root_path)?;
 
         let oid = encode_hex(&(0..20).map(|_n| random::<u8>()).collect::<Vec<u8>>());
@@ -518,7 +518,7 @@ mod tests {
         temp_dir.push_str("_jit_test");
 
         let root_path = Path::new("/tmp").join(temp_dir);
-        let mut repo = Repository::new(&root_path.join(".git"));
+        let mut repo = Repository::new(&root_path);
         fs::create_dir(&root_path)?;
 
         let git_path = root_path.join(".git");

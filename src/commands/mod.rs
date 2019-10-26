@@ -73,7 +73,7 @@ mod tests {
     }
 
     pub fn repo(repo_path: &Path) -> Repository {
-        Repository::new(&repo_path.join(".git"))
+        Repository::new(&repo_path)
     }
 
     pub struct CommandHelper {
