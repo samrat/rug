@@ -3,7 +3,9 @@ use crate::database::blob::Blob;
 use crate::database::object::Object;
 use crate::database::{Database, ParsedObject};
 use crate::diff;
+use crate::diff::myers::{Edit, EditType};
 use crate::repository::{ChangeType, Repository};
+use colored::*;
 use std::fs;
 use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
@@ -102,7 +104,11 @@ where
         a.path = format!("a/{}", a.path);
         b.path = format!("b/{}", b.path);
 
-        writeln!(self.ctx.stdout, "diff --git {} {}", a.path, b.path);
+        writeln!(
+            self.ctx.stdout,
+            "{}",
+            format!("diff --git {} {}", a.path, b.path).bold()
+        );
         self.print_diff_mode(&a, &b);
         self.print_diff_content(&a, &b);
     }
@@ -111,25 +117,25 @@ where
         if a.mode == None {
             writeln!(
                 self.ctx.stdout,
-                "new file mode {:o}",
-                b.mode.expect("missing mode")
+                "{}",
+                format!("new file mode {:o}", b.mode.expect("missing mode")).bold()
             );
         } else if b.mode == None {
             writeln!(
                 self.ctx.stdout,
-                "deleted file mode {:o}",
-                a.mode.expect("missing mode")
+                "{}",
+                format!("deleted file mode {:o}", a.mode.expect("missing mode")).bold()
             );
         } else if a.mode != b.mode {
             writeln!(
                 self.ctx.stdout,
-                "old mode {:o}",
-                a.mode.expect("missing mode")
+                "{}",
+                format!("old mode {:o}", a.mode.expect("missing mode")).bold()
             );
             writeln!(
                 self.ctx.stdout,
-                "new mode {:o}",
-                b.mode.expect("missing mode")
+                "{}",
+                format!("new mode {:o}", b.mode.expect("missing mode")).bold()
             );
         }
     }
@@ -141,22 +147,21 @@ where
 
         writeln!(
             self.ctx.stdout,
-            "index {}..{}{}",
-            short(&a.oid),
-            short(&b.oid),
-            if a.mode == b.mode {
-                format!(" {:o}", a.mode.expect("Missing mode"))
-            } else {
-                format!("")
-            }
+            "{}",
+            format!(
+                "index {}..{}{}",
+                short(&a.oid),
+                short(&b.oid),
+                if a.mode == b.mode {
+                    format!(" {:o}", a.mode.expect("Missing mode"))
+                } else {
+                    format!("")
+                }
+            )
+            .bold()
         );
-        writeln!(self.ctx.stdout, "--- {}", a.path);
-        writeln!(self.ctx.stdout, "+++ {}", b.path);
-
-        // let edits = diff::Diff::diff(&a.data, &b.data);
-        // for e in edits {
-        //     writeln!(self.ctx.stdout, "{}", e);
-        // }
+        writeln!(self.ctx.stdout, "{}", format!("--- {}", a.path).bold());
+        writeln!(self.ctx.stdout, "{}", format!("+++ {}", b.path).bold());
 
         let hunks = diff::Diff::diff_hunks(&a.data, &b.data);
         for h in hunks {
@@ -164,11 +169,20 @@ where
         }
     }
 
+    fn print_diff_edit(&mut self, edit: Edit) {
+        let edit_string = match &edit.edit_type {
+            &EditType::Ins => format!("{}", edit).green(),
+            &EditType::Del => format!("{}", edit).red(),
+            &EditType::Eql => format!("{}", edit).normal(),
+        };
+        writeln!(self.ctx.stdout, "{}", edit_string);
+    }
+
     fn print_diff_hunk(&mut self, hunk: diff::Hunk) {
-        writeln!(self.ctx.stdout, "{}", hunk.header());
+        writeln!(self.ctx.stdout, "{}", hunk.header().cyan());
 
         for edit in hunk.edits {
-            writeln!(self.ctx.stdout, "{}", edit);
+            self.print_diff_edit(edit);
         }
     }
 

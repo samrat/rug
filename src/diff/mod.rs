@@ -1,4 +1,4 @@
-mod myers;
+pub mod myers;
 use myers::{Edit, EditType, Myers};
 use std::fmt;
 
