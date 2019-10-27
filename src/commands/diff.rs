@@ -141,7 +141,7 @@ where
 
         writeln!(
             self.ctx.stdout,
-            "index {} {}{}",
+            "index {}..{}{}",
             short(&a.oid),
             short(&b.oid),
             if a.mode == b.mode {
@@ -153,9 +153,22 @@ where
         writeln!(self.ctx.stdout, "--- {}", a.path);
         writeln!(self.ctx.stdout, "+++ {}", b.path);
 
-        let edits = diff::Diff::diff(&a.data, &b.data);
-        for e in edits {
-            writeln!(self.ctx.stdout, "{}", e);
+        // let edits = diff::Diff::diff(&a.data, &b.data);
+        // for e in edits {
+        //     writeln!(self.ctx.stdout, "{}", e);
+        // }
+
+        let hunks = diff::Diff::diff_hunks(&a.data, &b.data);
+        for h in hunks {
+            self.print_diff_hunk(h);
+        }
+    }
+
+    fn print_diff_hunk(&mut self, hunk: diff::Hunk) {
+        writeln!(self.ctx.stdout, "{}", hunk.header());
+
+        for edit in hunk.edits {
+            writeln!(self.ctx.stdout, "{}", edit);
         }
     }
 

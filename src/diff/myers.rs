@@ -1,8 +1,9 @@
+use crate::diff::Line;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditType {
     Eql,
     Ins,
@@ -19,22 +20,24 @@ impl EditType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Edit {
-    edit_type: EditType,
-    a_line: Option<String>,
-    b_line: Option<String>,
+    pub edit_type: EditType,
+    pub a_line: Option<Line>,
+    pub b_line: Option<Line>,
 }
 
 impl Edit {
-    fn new(edit_type: EditType, a_line: Option<String>, b_line: Option<String>) -> Edit {
+    fn new(edit_type: EditType, a_line: Option<Line>, b_line: Option<Line>) -> Edit {
         Edit {
             edit_type,
             a_line,
             b_line,
         }
     }
+
 }
+
 
 impl fmt::Display for Edit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -50,8 +53,8 @@ impl fmt::Display for Edit {
 }
 
 pub struct Myers {
-    a: Vec<String>,
-    b: Vec<String>,
+    a: Vec<Line>,
+    b: Vec<Line>,
 }
 
 fn to_usize(i: isize) -> usize {
@@ -59,11 +62,8 @@ fn to_usize(i: isize) -> usize {
 }
 
 impl Myers {
-    pub fn new(a: Vec<&str>, b: Vec<&str>) -> Myers {
-        Myers {
-            a: a.iter().map(|s| s.to_string()).collect(),
-            b: b.iter().map(|s| s.to_string()).collect(),
-        }
+    pub fn new(a: Vec<Line>, b: Vec<Line>) -> Myers {
+        Myers { a, b }
     }
 
     pub fn diff(&self) -> Vec<Edit> {
@@ -119,7 +119,7 @@ impl Myers {
                     };
 
                 let mut y: isize = x - k;
-                while x < n && y < m && self.a[to_usize(x)] == self.b[to_usize(y)] {
+                while x < n && y < m && self.a[to_usize(x)].text == self.b[to_usize(y)].text {
                     x = x + 1;
                     y = y + 1;
                 }
