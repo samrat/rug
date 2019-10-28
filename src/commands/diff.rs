@@ -4,8 +4,10 @@ use crate::database::object::Object;
 use crate::database::{Database, ParsedObject};
 use crate::diff;
 use crate::diff::myers::{Edit, EditType};
+use crate::pager::Pager;
 use crate::repository::{ChangeType, Repository};
 use colored::*;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
@@ -48,6 +50,8 @@ where
     pub fn run(&mut self) -> Result<(), String> {
         self.repo.index.load();
         self.repo.initialize_status();
+
+        Pager::setup_pager();
 
         if self.ctx.args.len() > 2 && self.ctx.args[2] == "--cached" {
             self.diff_head_index()
