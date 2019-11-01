@@ -12,6 +12,8 @@ mod status;
 use status::Status;
 mod diff;
 use diff::Diff;
+mod branch;
+use branch::Branch;
 
 #[derive(Debug)]
 pub struct CommandContext<'a, I, O, E>
@@ -48,6 +50,10 @@ where
         },
         "diff" => {
             let mut cmd = Diff::new(ctx);
+            cmd.run()
+        },
+        "branch" => {
+            let mut cmd = Branch::new(ctx);
             cmd.run()
         },
         _ => Err(format!("invalid command: {}\n", command)),

@@ -96,7 +96,7 @@ impl Pager {
                 utils::close(pager_stdin);
             }
             _ => {
-                // Parent
+                // Parent-- executes pager
                 utils::dup2(pager_stdin, libc::STDIN_FILENO);
                 utils::close(main_stdout);
                 utils::execvp(&pager_cmd);

@@ -4,6 +4,24 @@ use std::path::{Path, PathBuf};
 
 use crate::lockfile::Lockfile;
 
+extern crate regex;
+use regex::RegexSet;
+
+lazy_static! {
+    static ref INVALID_FILENAME: RegexSet = {
+        RegexSet::new(&[
+            r"^\.",
+            r"/\.",
+            r"\.\.",
+            r"/$",
+            r"\.lock$",
+            r"@\{",
+            r"[\x00-\x20*:?\[\\^~\x7f]",
+        ])
+        .unwrap()
+    };
+}
+
 pub struct Refs {
     pathname: PathBuf,
 }
@@ -19,12 +37,20 @@ impl Refs {
         (*self.pathname).join("HEAD")
     }
 
-    pub fn update_head(&self, oid: &str) -> Result<(), std::io::Error> {
-        let mut lock = Lockfile::new(&self.head_path());
+    fn heads_path(&self) -> PathBuf {
+        (*self.pathname).join("refs/heads")
+    }
+
+    pub fn update_ref_file(&self, path: &Path, oid: &str) -> Result<(), std::io::Error> {
+        let mut lock = Lockfile::new(path);
         lock.hold_for_update()?;
         lock.write(oid)?;
         lock.write("\n")?;
         lock.commit()
+    }
+
+    pub fn update_head(&self, oid: &str) -> Result<(), std::io::Error> {
+        self.update_ref_file(&self.head_path(), oid)
     }
 
     // NOTE: Jumping a bit ahead of the book so that we can have a
@@ -49,5 +75,24 @@ impl Refs {
         } else {
             None
         }
+    }
+
+    pub fn create_branch(&self, branch_name: &str) -> Result<(), String> {
+        let path = self.heads_path().join(branch_name);
+
+        if INVALID_FILENAME.matches(branch_name).into_iter().count() > 0 {
+            panic!("{} is not a valid branch name. {:?}", branch_name,
+            INVALID_FILENAME.matches(branch_name).into_iter().collect::<Vec<_>>());
+            return Err(format!("{} is not a valid branch name.", branch_name));
+        }
+
+        if path.as_path().exists() {
+            return Err(format!("A branch named {} already exists.", branch_name));
+        }
+
+        File::create(&path).expect("failed to create refs file for branch");
+        self.update_ref_file(&path, &self.read_head().expect("empty HEAD"));
+
+        Ok(())
     }
 }
