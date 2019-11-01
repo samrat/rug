@@ -161,7 +161,6 @@ impl Hunk {
             hunks.push(hunk);
             offset = new_offset;
         }
-        hunks
     }
 
     fn build_hunk(
@@ -190,7 +189,7 @@ impl Hunk {
 
             if let Some(edit) = get_edit(edits, offset + HUNK_CONTEXT as isize) {
                 match edit.edit_type {
-                    EditType::Ins | EditType::Ins => {
+                    EditType::Ins | EditType::Del => {
                         counter = (2 * HUNK_CONTEXT + 1) as isize;
                     }
                     _ => {

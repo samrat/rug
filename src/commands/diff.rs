@@ -78,7 +78,6 @@ where
                     let a = self.from_head(path);
                     self.print_diff(a, self.from_nothing(path))
                 }
-                _ => panic!("NYI"),
             }
         }
     }
@@ -95,7 +94,6 @@ where
                     let a = self.from_index(path);
                     self.print_diff(a, self.from_nothing(path))
                 }
-                _ => panic!("NYI"),
             }
         }
     }
