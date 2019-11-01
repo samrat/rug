@@ -81,13 +81,11 @@ impl Refs {
         let path = self.heads_path().join(branch_name);
 
         if INVALID_FILENAME.matches(branch_name).into_iter().count() > 0 {
-            panic!("{} is not a valid branch name. {:?}", branch_name,
-            INVALID_FILENAME.matches(branch_name).into_iter().collect::<Vec<_>>());
-            return Err(format!("{} is not a valid branch name.", branch_name));
+            return Err(format!("{} is not a valid branch name.\n", branch_name));
         }
 
         if path.as_path().exists() {
-            return Err(format!("A branch named {} already exists.", branch_name));
+            return Err(format!("A branch named {} already exists.\n", branch_name));
         }
 
         File::create(&path).expect("failed to create refs file for branch");
