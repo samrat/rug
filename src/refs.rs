@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use crate::lockfile::Lockfile;
 
-extern crate regex;
 use regex::RegexSet;
 
 lazy_static! {

@@ -4,6 +4,7 @@ extern crate flate2;
 extern crate rand;
 #[macro_use]
 extern crate lazy_static;
+extern crate regex;
 
 use std::collections::HashMap;
 use std::env;
@@ -27,7 +28,12 @@ use commands::{execute, CommandContext};
 mod pager;
 use pager::Pager;
 
+mod revision;
+use revision::Revision;
+
 fn main() {
+    // println!("{:?}", Revision::parse("@~42^"));
+
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
         dir: env::current_dir().unwrap(),
