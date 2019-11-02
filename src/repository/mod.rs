@@ -32,7 +32,7 @@ pub struct Repository {
     pub workspace: Workspace,
 
     // status fields
-    root_path: PathBuf,
+    pub root_path: PathBuf,
     pub stats: HashMap<String, fs::Metadata>,
     pub untracked: BTreeSet<String>,
     pub changed: BTreeSet<String>,

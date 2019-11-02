@@ -76,7 +76,7 @@ impl Refs {
         }
     }
 
-    pub fn create_branch(&self, branch_name: &str) -> Result<(), String> {
+    pub fn create_branch(&self, branch_name: &str, start_oid: &str) -> Result<(), String> {
         let path = self.heads_path().join(branch_name);
 
         if INVALID_FILENAME.matches(branch_name).into_iter().count() > 0 {
@@ -88,7 +88,7 @@ impl Refs {
         }
 
         File::create(&path).expect("failed to create refs file for branch");
-        self.update_ref_file(&path, &self.read_head().expect("empty HEAD"));
+        self.update_ref_file(&path, start_oid);
 
         Ok(())
     }

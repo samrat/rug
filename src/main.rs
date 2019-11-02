@@ -32,8 +32,6 @@ mod revision;
 use revision::Revision;
 
 fn main() {
-    // println!("{:?}", Revision::parse("@~42^"));
-
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
         dir: env::current_dir().unwrap(),

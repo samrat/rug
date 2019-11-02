@@ -1,5 +1,6 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
+use crate::revision::Revision;
 use std::io::{Read, Write};
 
 pub struct Branch<'a, I, O, E>
@@ -23,10 +24,7 @@ where
         let root_path = working_dir.as_path();
         let repo = Repository::new(&root_path);
 
-        Branch {
-            repo,
-            ctx
-        }
+        Branch { repo, ctx }
     }
 
     pub fn run(&mut self) -> Result<(), String> {
@@ -35,10 +33,18 @@ where
         Ok(())
     }
 
-    fn create_branch(&self) -> Result<(), String> {
+    fn create_branch(&mut self) -> Result<(), String> {
+        assert!(self.ctx.args.len() > 2, "no branch name provided");
         let branch_name = &self.ctx.args[2];
+        let start_point = if self.ctx.args.len() < 3 {
+            self.repo.refs.read_head().expect("empty HEAD")
+        } else {
+            Revision::new(&mut self.repo, &self.ctx.args[3])
+                .resolve()
+                .expect("failed to parse start point")
+        };
 
-        self.repo.refs.create_branch(branch_name)?;
+        self.repo.refs.create_branch(branch_name, &start_point)?;
 
         Ok(())
     }
