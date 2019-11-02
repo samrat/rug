@@ -124,7 +124,6 @@ impl Database {
             ),
             _ => panic!("EOF while parsing size"),
         };
-        vs = rest;
 
         match obj_type {
             "commit" => return Some(Commit::parse(&rest)),

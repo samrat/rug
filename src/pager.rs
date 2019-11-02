@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::io::Write;
 
 const PAGER_CMD: &str = "less";
 
@@ -16,7 +15,6 @@ lazy_static! {
 mod utils {
     use std::ffi::{CString, OsString};
     use std::os::unix::ffi::OsStringExt;
-    use std::process::{Command, Stdio};
     use std::ptr;
 
     use errno;

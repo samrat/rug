@@ -7,11 +7,8 @@ use crate::diff::myers::{Edit, EditType};
 use crate::pager::Pager;
 use crate::repository::{ChangeType, Repository};
 use colored::*;
-use std::collections::HashMap;
-use std::fs;
 use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
 
 const NULL_OID: &str = "0000000";
 const NULL_PATH: &str = "/dev/null";

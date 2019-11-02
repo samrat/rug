@@ -18,18 +18,12 @@ mod refs;
 mod repository;
 mod util;
 mod workspace;
-
 mod diff;
-use diff::Diff;
+mod pager;
+mod revision;
 
 mod commands;
 use commands::{execute, CommandContext};
-
-mod pager;
-use pager::Pager;
-
-mod revision;
-use revision::Revision;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

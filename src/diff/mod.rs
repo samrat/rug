@@ -57,7 +57,7 @@ fn get_edit(edits: &[Edit], offset: isize) -> Option<&Edit> {
 
 const HUNK_CONTEXT: usize = 3;
 
-const empty_edit: Edit = Edit {
+const EMPTY_EDIT: Edit = Edit {
     edit_type: EditType::Eql,
     a_line: None,
     b_line: None,
@@ -139,7 +139,7 @@ impl Hunk {
                 0
             } else {
                 get_edit(&edits, offset)
-                    .unwrap_or(&empty_edit)
+                    .unwrap_or(&EMPTY_EDIT)
                     .a_line
                     .clone()
                     .unwrap_or(empty_line.clone())
@@ -150,7 +150,7 @@ impl Hunk {
                 0
             } else {
                 get_edit(&edits, offset)
-                    .unwrap_or(&empty_edit)
+                    .unwrap_or(&EMPTY_EDIT)
                     .b_line
                     .clone()
                     .unwrap_or(empty_line.clone())
