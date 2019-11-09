@@ -25,8 +25,6 @@ mod revision;
 mod commands;
 use commands::{execute, CommandContext};
 
-use database::commit::Author;
-
 fn main() {
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
