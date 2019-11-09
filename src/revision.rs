@@ -1,7 +1,8 @@
-use crate::database::ParsedObject;
+use crate::database::{commit, Database, ParsedObject};
 use crate::repository::Repository;
 use regex::{Regex, RegexSet};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -29,6 +30,23 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone)]
+pub struct HintedError {
+    pub message: String,
+    pub hint: Vec<String>,
+}
+
+impl fmt::Display for HintedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}\n", self.message);
+        for line in &self.hint {
+            write!(f, "hint: {}\n", line);
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Rev {
     Ref { name: String },
     Parent { rev: Box<Rev> },
@@ -39,6 +57,7 @@ pub struct Revision<'a> {
     repo: &'a mut Repository,
     query: Rev,
     expr: String,
+    errors: Vec<HintedError>,
 }
 
 impl<'a> Revision<'a> {
@@ -47,6 +66,7 @@ impl<'a> Revision<'a> {
             repo,
             expr: expr.to_string(),
             query: Self::parse(expr).expect("Revision parse failed"),
+            errors: vec![],
         }
     }
 
@@ -74,8 +94,19 @@ impl<'a> Revision<'a> {
         INVALID_NAME.matches(revision).into_iter().count() == 0
     }
 
-    pub fn resolve(&mut self) -> Option<String> {
-        self.resolve_query(self.query.clone())
+    pub fn resolve(&mut self) -> Result<String, Vec<HintedError>> {
+        match self.resolve_query(self.query.clone()) {
+            Some(revision) => {
+                if let Some(_) = self.load_commit(&revision) {
+                    Ok(revision)
+                } else {
+                    Err(self.errors.clone())
+                }
+            },
+            None => {
+                Err(self.errors.clone())
+            }
+        }
     }
 
     /// Resolve Revision to commit object ID.
@@ -100,12 +131,46 @@ impl<'a> Revision<'a> {
         }
     }
 
-    fn read_ref(&self, name: &str) -> Option<String> {
+    fn read_ref(&mut self, name: &str) -> Option<String> {
         if let Some(path) = self.path_for_name(name) {
             Some(Self::read_ref_file(&path))
         } else {
-            None
+            let candidates = self.repo.database.prefix_match(name);
+            if candidates.len() == 1 {
+                Some(candidates[0].to_string())
+            } else {
+                if candidates.len() > 1 {
+                    self.log_ambiguous_sha1(name, candidates);
+                }
+                None
+            }
         }
+    }
+
+    fn log_ambiguous_sha1(&mut self, name: &str, mut candidates: Vec<String>) {
+        candidates.sort();
+        let message = format!("short SHA1 {} is ambiguous", name);
+        let mut hint = vec!["The candidates are:".to_string()];
+
+        for oid in candidates {
+            let object = self.repo.database.load(&oid);
+            let long_oid = object.get_oid();
+            let short = Database::short_oid(&long_oid);
+            let info = format!(" {} {}", short, object.obj_type());
+
+            let obj_message = if let ParsedObject::Commit(commit) = object {
+                format!(
+                    "{} {} - {}",
+                    info,
+                    commit.author.short_date(),
+                    commit.title_line()
+                )
+            } else {
+                info
+            };
+            hint.push(obj_message);
+        }
+        self.errors.push(HintedError { message, hint });
     }
 
     fn path_for_name(&self, name: &str) -> Option<PathBuf> {
@@ -130,9 +195,23 @@ impl<'a> Revision<'a> {
     }
 
     fn commit_parent(&mut self, oid: &str) -> Option<String> {
+        match self.load_commit(oid) {
+            Some(commit) => commit.parent.clone(),
+            None => None,
+        }
+    }
+
+    fn load_commit(&mut self, oid: &str) -> Option<&commit::Commit> {
         match self.repo.database.load(oid) {
-            ParsedObject::Commit(commit) => commit.parent.clone(),
-            _ => None,
+            ParsedObject::Commit(commit) => Some(commit),
+            object => {
+                let message = format!("object {} is a {}, not a commit", oid, object.obj_type());
+                self.errors.push(HintedError {
+                    message,
+                    hint: vec![],
+                });
+                None
+            }
         }
     }
 }

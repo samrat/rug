@@ -1,6 +1,6 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
-use crate::revision::Revision;
+use crate::revision::{Revision};
 use std::io::{Read, Write};
 
 pub struct Branch<'a, I, O, E>
@@ -39,9 +39,22 @@ where
         let start_point = if self.ctx.args.len() < 3 {
             self.repo.refs.read_head().expect("empty HEAD")
         } else {
-            Revision::new(&mut self.repo, &self.ctx.args[3])
-                .resolve()
-                .expect("failed to parse start point")
+            match Revision::new(&mut self.repo, &self.ctx.args[3]).resolve() {
+                Ok(rev) => rev,
+                Err(errors) => {
+                    let mut v = vec![];
+                    for error in errors {
+                        v.push(format!("error: {}", error.message));
+                        for h in error.hint {
+                            v.push(format!("hint: {}", h));
+                        }
+                    }
+
+                    v.push("\n".to_string());
+
+                    return Err(v.join("\n"));
+                }
+            }
         };
 
         self.repo.refs.create_branch(branch_name, &start_point)?;

@@ -25,7 +25,10 @@ mod revision;
 mod commands;
 use commands::{execute, CommandContext};
 
+use database::commit::Author;
+
 fn main() {
+    // println!("{:?}", Author::parse("Samrat Man Singh <samratmansingh@gmail.com> 1572690145 +0000"));
     let args: Vec<String> = env::args().collect();
     let ctx = CommandContext {
         dir: env::current_dir().unwrap(),

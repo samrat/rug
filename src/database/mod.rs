@@ -1,4 +1,4 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,24 @@ pub enum ParsedObject {
     Commit(Commit),
     Blob(Blob),
     Tree(Tree),
+}
+
+impl ParsedObject {
+    pub fn obj_type(&self) -> &str {
+        match self {
+            &ParsedObject::Commit(_) => "commit",
+            &ParsedObject::Blob(_) => "blob",
+            &ParsedObject::Tree(_) => "tree",
+        }
+    }
+
+    pub fn get_oid(&self) -> String {
+        match self {
+            ParsedObject::Commit(obj) => obj.get_oid(),
+            ParsedObject::Blob(obj) => obj.get_oid(),
+            ParsedObject::Tree(obj) => obj.get_oid(),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -189,5 +207,33 @@ impl Database {
 
     pub fn short_oid(oid: &str) -> &str {
         &oid[0..6]
+    }
+
+    pub fn prefix_match(&self, name: &str) -> Vec<String> {
+        let object_path = self.object_path(name);
+        let dirname = object_path
+            .parent()
+            .expect("Could not get parent from object_path");
+
+        let oids: Vec<_> = fs::read_dir(&dirname)
+            .expect("read_dir call failed")
+            .map(|f| {
+                format!(
+                    "{}{}",
+                    dirname
+                        .file_name()
+                        .expect("could not get filename")
+                        .to_str()
+                        .expect("convertion from OsStr to str failed"),
+                    f.unwrap()
+                        .file_name()
+                        .to_str()
+                        .expect("convertion from OsStr to str failed")
+                )
+            })
+            .filter(|o| o.starts_with(name))
+            .collect();
+
+        oids
     }
 }

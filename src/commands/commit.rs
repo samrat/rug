@@ -1,7 +1,8 @@
 use std::io::{Read, Write};
 
-use crate::commands::CommandContext;
+use chrono::prelude::*;
 
+use crate::commands::CommandContext;
 use crate::database::commit::{Author, Commit};
 use crate::database::object::Object;
 use crate::database::tree::Tree;
@@ -45,6 +46,7 @@ where
     let author = Author {
         name: author_name.to_string(),
         email: author_email.to_string(),
+        time: Utc::now().with_timezone(&FixedOffset::east(0)),
     };
 
     let mut commit_message = String::new();

@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::prelude::*;
 use std::collections::HashMap;
 use std::str;
 
@@ -8,6 +8,7 @@ use crate::database::{Object, ParsedObject};
 pub struct Author {
     pub name: String,
     pub email: String,
+    pub time: DateTime<FixedOffset>,
 }
 
 impl Author {
@@ -18,6 +19,24 @@ impl Author {
             self.email,
             Utc::now().format("%s %z")
         )
+    }
+
+    pub fn short_date(&self) -> String {
+        self.time.format("%Y-%m-%d").to_string()
+    }
+
+    pub fn parse(s: &str) -> Author {
+        let split_author_str = s
+            .split(&['<', '>'][..])
+            .map(|s| s.trim())
+            .collect::<Vec<_>>();
+
+        let name = split_author_str[0].to_string();
+        let email = split_author_str[1].to_string();
+        let time = DateTime::parse_from_str(split_author_str[2], "%s %z")
+            .expect("could not parse datetime");
+
+        Author { name, email, time }
     }
 }
 
@@ -42,6 +61,14 @@ impl Commit {
             author,
             message,
         }
+    }
+
+    pub fn title_line(&self) -> String {
+        self.message
+            .lines()
+            .next()
+            .expect("could not get first line of commit")
+            .to_string()
     }
 }
 
@@ -90,10 +117,7 @@ impl Object for Commit {
         ParsedObject::Commit(Commit::new(
             &headers.get("parent").map(|s| s.to_string()),
             headers.get("tree").expect("no tree header").to_string(),
-            Author {
-                name: "TODO".to_string(),
-                email: "TODO".to_string(),
-            },
+            Author::parse(headers.get("author").expect("no author found in commit")),
             s.to_string(),
         ))
     }
