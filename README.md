@@ -41,3 +41,20 @@ You should now be able to use Git to view the commit you just created:
 ```
 git show
 ```
+
+
+### Other supported commands
+
+```
+rug status
+rug status --porcelain
+```
+
+```
+rug diff
+rug diff --cached
+```
+
+```
+rug branch foo HEAD~5
+```
