@@ -144,13 +144,13 @@ where
     }
 
     fn print_commit_status(&mut self) {
-        if self.repo.index_changes.len() > 0 {
+        if !self.repo.index_changes.len().is_empty() {
             return;
         }
 
-        if self.repo.workspace_changes.len() > 0 {
+        if !self.repo.workspace_changes.len().is_empty() {
             writeln!(self.ctx.stdout, "no changes added to commit");
-        } else if self.repo.untracked.len() > 0 {
+        } else if !self.repo.untracked.len().is_empty() {
             writeln!(
                 self.ctx.stdout,
                 "nothing added to commit but untracked files present"

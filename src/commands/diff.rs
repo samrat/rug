@@ -154,7 +154,7 @@ where
                 if a.mode == b.mode {
                     format!(" {:o}", a.mode.expect("Missing mode"))
                 } else {
-                    format!("")
+                    "".to_string()
                 }
             )
             .bold()
@@ -170,9 +170,9 @@ where
 
     fn print_diff_edit(&mut self, edit: Edit) {
         let edit_string = match &edit.edit_type {
-            &EditType::Ins => format!("{}", edit).green(),
-            &EditType::Del => format!("{}", edit).red(),
-            &EditType::Eql => format!("{}", edit).normal(),
+            EditType::Ins => format!("{}", edit).green(),
+            EditType::Del => format!("{}", edit).red(),
+            EditType::Eql => format!("{}", edit).normal(),
         };
         writeln!(self.ctx.stdout, "{}", edit_string);
     }
