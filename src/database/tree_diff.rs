@@ -3,18 +3,15 @@ use crate::database::{Database, ParsedObject, Tree};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
-pub struct TreeDiff {
-    database: Database,
+pub struct TreeDiff<'a> {
+    database: &'a mut Database,
     pub changes: HashMap<PathBuf, (Option<TreeEntry>, Option<TreeEntry>)>,
 }
 
-impl TreeDiff {
-    pub fn new(root_path: &Path) -> TreeDiff {
-        let git_path = root_path.join(".git");
-        let db_path = git_path.join("objects");
-
+impl<'a> TreeDiff<'a> {
+    pub fn new(database: &mut Database) -> TreeDiff {
         TreeDiff {
-            database: Database::new(&db_path),
+            database,
             changes: HashMap::new(),
         }
     }

@@ -12,6 +12,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod migration;
+use migration::Migration;
+
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
 pub enum ChangeType {
     Added,
@@ -229,5 +232,12 @@ impl Repository {
         }
 
         return Ok(false);
+    }
+
+    pub fn migration(
+        &mut self,
+        tree_diff: HashMap<PathBuf, (Option<TreeEntry>, Option<TreeEntry>)>,
+    ) -> Migration {
+        Migration::new(self, tree_diff)
     }
 }

@@ -14,6 +14,8 @@ mod diff;
 use diff::Diff;
 mod branch;
 use branch::Branch;
+mod checkout;
+use checkout::Checkout;
 
 #[derive(Debug)]
 pub struct CommandContext<'a, I, O, E>
@@ -54,6 +56,10 @@ where
         },
         "branch" => {
             let mut cmd = Branch::new(ctx);
+            cmd.run()
+        },
+        "checkout" => {
+            let mut cmd = Checkout::new(ctx);
             cmd.run()
         },
         _ => Err(format!("invalid command: {}\n", command)),
