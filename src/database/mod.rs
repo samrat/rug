@@ -15,6 +15,7 @@ pub mod blob;
 pub mod commit;
 pub mod object;
 pub mod tree;
+pub mod tree_diff;
 
 use blob::Blob;
 use commit::Commit;

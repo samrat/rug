@@ -8,7 +8,7 @@ use std::str;
 
 pub const TREE_MODE: u32 = 0o40000;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TreeEntry {
     Entry(Entry),
     Tree(Tree),
@@ -37,7 +37,7 @@ impl TreeEntry {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tree {
     pub entries: BTreeMap<String, TreeEntry>,
 }
