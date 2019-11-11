@@ -26,7 +26,7 @@ where
     pub fn new(ctx: CommandContext<'a, I, O, E>) -> Checkout<'a, I, O, E> {
         let working_dir = &ctx.dir;
         let root_path = working_dir.as_path();
-        let mut repo = Repository::new(&root_path);
+        let repo = Repository::new(&root_path);
 
         Checkout { repo, ctx }
     }
@@ -55,9 +55,8 @@ where
         };
 
         let tree_diff = self.tree_diff(&current_oid, &target_oid);
-        let migration = self.repo.migration(tree_diff);
+        let mut migration = self.repo.migration(tree_diff);
         migration.apply_changes();
-        // println!("{:?}", tree_diff);
 
         Ok(())
     }

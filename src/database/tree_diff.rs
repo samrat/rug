@@ -75,7 +75,6 @@ impl<'a> TreeDiff<'a> {
                 Some(entry.get_oid())
             };
 
-            println!("{:?}", (blob_a.clone(), blob_b.clone()));
             if blob_a.is_some() || blob_b.is_some() {
                 self.changes
                     .insert(path, (Some(entry.clone()), other.cloned()));

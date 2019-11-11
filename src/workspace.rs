@@ -1,5 +1,8 @@
-use std::collections::HashMap;
-use std::fs::{self, File};
+use crate::database::tree::TreeEntry;
+use crate::database::{Database, ParsedObject};
+use crate::repository::migration::{Action, Migration};
+use std::collections::{BTreeSet, HashMap};
+use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -93,5 +96,89 @@ impl Workspace {
 
     pub fn stat_file(&self, file_name: &str) -> Result<fs::Metadata, std::io::Error> {
         fs::metadata(self.path.join(file_name))
+    }
+
+    pub fn apply_migration(
+        &self,
+        database: &mut Database,
+        changes: &HashMap<Action, Vec<(PathBuf, Option<TreeEntry>)>>,
+        rmdirs: &BTreeSet<PathBuf>,
+        mkdirs: &BTreeSet<PathBuf>,
+    ) {
+        self.apply_change_list(database, changes, Action::Delete);
+        for dir in rmdirs.iter().rev() {
+            self.remove_directory(dir);
+        }
+
+        for dir in mkdirs.iter() {
+            self.make_directory(dir);
+        }
+
+        self.apply_change_list(database, changes, Action::Update);
+        self.apply_change_list(database, changes, Action::Create);
+    }
+
+    fn apply_change_list(
+        &self,
+        database: &mut Database,
+        changes: &HashMap<Action, Vec<(PathBuf, Option<TreeEntry>)>>,
+        action: Action,
+    ) -> std::io::Result<()> {
+        let changes = changes.get(&action).unwrap().clone();
+        for (filename, entry) in changes {
+            let path = self.path.join(filename);
+            Self::remove_file_or_dir(&path);
+
+            if action == Action::Delete {
+                continue;
+            }
+
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)?;
+            let entry_oid = entry
+                .clone()
+                .expect("entry missing for non-delete")
+                .get_oid();
+            let data = Self::blob_data(database, &entry_oid);
+
+            file.write_all(&data)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn blob_data(database: &mut Database, oid: &str) -> Vec<u8> {
+        match database.load(oid) {
+            ParsedObject::Blob(blob) => blob.data.clone(),
+            _ => panic!("not a blob oid"),
+        }
+    }
+
+    fn remove_file_or_dir(path: &Path) -> std::io::Result<()> {
+        if path.is_dir() {
+            std::fs::remove_dir(path)
+        } else {
+            std::fs::remove_file(path)
+        }
+    }
+
+    fn remove_directory(&self, path: &Path) -> std::io::Result<()> {
+        std::fs::remove_dir(path)?;
+        Ok(())
+    }
+
+    fn make_directory(&self, dirname: &Path) -> std::io::Result<()> {
+        let path = self.path.join(dirname);
+        let stat = self.stat_file(dirname.to_str().expect("conversion to str failed"))?;
+
+        if stat.is_file() {
+            std::fs::remove_file(&path)?;
+        }
+        if !stat.is_dir() {
+            std::fs::create_dir(&path)?;
+        }
+        Ok(())
     }
 }
