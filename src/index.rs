@@ -291,6 +291,14 @@ impl Index {
         }
     }
 
+    pub fn remove(&mut self, pathname: &str) {
+        let children = self.parents.get(pathname).unwrap().clone();
+        for child in children {
+            self.remove_entry(&child);
+        }
+        self.remove_entry(pathname);
+    }
+
     fn remove_entry(&mut self, pathname: &str) {
         let entry = {
             if let Some(entry) = self.entries.get(pathname) {

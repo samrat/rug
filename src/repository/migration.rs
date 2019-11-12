@@ -41,6 +41,7 @@ impl<'a> Migration<'a> {
     pub fn apply_changes(&mut self) {
         self.plan_changes();
         self.update_workspace();
+        self.update_index();
     }
 
     fn plan_changes(&mut self) {
@@ -85,5 +86,26 @@ impl<'a> Migration<'a> {
             &self.rmdirs,
             &self.mkdirs,
         );
+    }
+
+    fn update_index(&mut self) {
+        for (path, _) in self.changes.get(&Action::Delete).unwrap() {
+            self.repo.index.remove(path.to_str().expect("failed to convert path to str"));
+        }
+
+        for action in &[Action::Create, Action::Update] {
+            for (path, entry) in self.changes.get(action).unwrap() {
+                let path = path.to_str().expect("failed to convert path to str");
+                let entry_oid = entry.clone().unwrap().get_oid();
+                let stat = self
+                    .repo
+                    .workspace
+                    .stat_file(path)
+                    .expect("failed to stat file");
+                self.repo
+                    .index
+                    .add(path, &entry_oid, &stat);
+            }
+        }
     }
 }

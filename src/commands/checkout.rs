@@ -33,6 +33,8 @@ where
 
     pub fn run(&mut self) -> Result<(), String> {
         assert!(self.ctx.args.len() > 2, "no target provided");
+        self.repo.index.load_for_update();
+
         let target = &self.ctx.args[2];
         let current_oid = self.repo.refs.read_head().expect("failed to read HEAD");
 
@@ -57,6 +59,9 @@ where
         let tree_diff = self.tree_diff(&current_oid, &target_oid);
         let mut migration = self.repo.migration(tree_diff);
         migration.apply_changes();
+
+        self.repo.index.write_updates();
+        self.repo.refs.update_head(&target_oid);
 
         Ok(())
     }
