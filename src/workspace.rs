@@ -1,6 +1,6 @@
 use crate::database::tree::TreeEntry;
 use crate::database::{Database, ParsedObject};
-use crate::repository::migration::{Action, Migration};
+use crate::repository::migration::Action;
 use std::collections::{BTreeSet, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
@@ -104,18 +104,21 @@ impl Workspace {
         changes: &HashMap<Action, Vec<(PathBuf, Option<TreeEntry>)>>,
         rmdirs: &BTreeSet<PathBuf>,
         mkdirs: &BTreeSet<PathBuf>,
-    ) {
-        self.apply_change_list(database, changes, Action::Delete);
+    ) -> Result<(), String> {
+        self.apply_change_list(database, changes, Action::Delete)
+            .map_err(|e| e.to_string())?;
         for dir in rmdirs.iter().rev() {
-            self.remove_directory(dir);
+            self.remove_directory(dir).map_err(|e| e.to_string())?;
         }
 
         for dir in mkdirs.iter() {
-            self.make_directory(dir);
+            self.make_directory(dir).map_err(|e| e.to_string())?;
         }
 
-        self.apply_change_list(database, changes, Action::Update);
-        self.apply_change_list(database, changes, Action::Create);
+        self.apply_change_list(database, changes, Action::Update)
+            .map_err(|e| e.to_string())?;
+        self.apply_change_list(database, changes, Action::Create)
+            .map_err(|e| e.to_string())
     }
 
     fn apply_change_list(
@@ -127,7 +130,7 @@ impl Workspace {
         let changes = changes.get(&action).unwrap().clone();
         for (filename, entry) in changes {
             let path = self.path.join(filename);
-            Self::remove_file_or_dir(&path);
+            Self::remove_file_or_dir(&path)?;
 
             if action == Action::Delete {
                 continue;

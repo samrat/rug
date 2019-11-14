@@ -49,10 +49,7 @@ where
         let root_path = working_dir.as_path();
         let repo = Repository::new(&root_path);
 
-        Status {
-            repo,
-            ctx: ctx,
-        }
+        Status { repo, ctx: ctx }
     }
 
     fn status_for(&self, path: &str) -> String {
@@ -69,30 +66,30 @@ where
         format!("{}{}", left, right)
     }
 
-    fn print_porcelain_format(&mut self) -> Result<(), std::io::Error> {
+    fn print_porcelain_format(&mut self) -> Result<(), String> {
         for file in &self.repo.changed {
-            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file)?;
+            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file).map_err(|e| e.to_string())?;
         }
 
         for file in &self.repo.untracked {
-            writeln!(self.ctx.stdout, "?? {}", file);
+            writeln!(self.ctx.stdout, "?? {}", file).map_err(|e| e.to_string())?;
         }
 
         Ok(())
     }
 
-    fn print_long_format(&mut self) -> Result<(), std::io::Error> {
-        self.print_index_changes("Changes to be committed", "green");
-        self.print_workspace_changes("Changes not staged for commit", "red");
-        self.print_untracked_files("Untracked files", "red");
+    fn print_long_format(&mut self) -> Result<(), String> {
+        self.print_index_changes("Changes to be committed", "green")?;
+        self.print_workspace_changes("Changes not staged for commit", "red")?;
+        self.print_untracked_files("Untracked files", "red")?;
 
-        self.print_commit_status();
+        self.print_commit_status()?;
 
         Ok(())
     }
 
-    fn print_index_changes(&mut self, message: &str, style: &str) {
-        writeln!(self.ctx.stdout, "{}\n", message);
+    fn print_index_changes(&mut self, message: &str, style: &str) -> Result<(), String> {
+        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
 
         for (path, change_type) in &self.repo.index_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
@@ -100,15 +97,16 @@ where
                     self.ctx.stdout,
                     "{}",
                     format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
-                );
+                )
+                .map_err(|e| e.to_string())?;
             }
         }
 
-        writeln!(self.ctx.stdout, "");
+        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
     }
 
-    fn print_workspace_changes(&mut self, message: &str, style: &str) {
-        writeln!(self.ctx.stdout, "{}\n", message);
+    fn print_workspace_changes(&mut self, message: &str, style: &str) -> Result<(), String> {
+        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
 
         for (path, change_type) in &self.repo.workspace_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
@@ -116,23 +114,25 @@ where
                     self.ctx.stdout,
                     "{}",
                     format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
-                );
+                )
+                .map_err(|e| e.to_string())?;
             }
         }
 
-        writeln!(self.ctx.stdout, "");
+        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
     }
 
-    fn print_untracked_files(&mut self, message: &str, style: &str) {
-        writeln!(self.ctx.stdout, "{}\n", message);
+    fn print_untracked_files(&mut self, message: &str, style: &str) -> Result<(), String> {
+        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
 
         for path in &self.repo.untracked {
-            writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style));
+            writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style))
+                .map_err(|e| e.to_string())?;
         }
-        writeln!(self.ctx.stdout, "");
+        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
     }
 
-    pub fn print_results(&mut self) -> Result<(), std::io::Error> {
+    pub fn print_results(&mut self) -> Result<(), String> {
         // TODO: strip off until actual args?
         if self.ctx.args.len() > 2 && self.ctx.args[2] == "--porcelain" {
             self.print_porcelain_format()?;
@@ -143,20 +143,22 @@ where
         Ok(())
     }
 
-    fn print_commit_status(&mut self) {
+    fn print_commit_status(&mut self) -> Result<(), String> {
         if !self.repo.index_changes.is_empty() {
-            return;
+            return Ok(());
         }
 
         if !self.repo.workspace_changes.is_empty() {
-            writeln!(self.ctx.stdout, "no changes added to commit");
+            writeln!(self.ctx.stdout, "no changes added to commit").map_err(|e| e.to_string())
         } else if !self.repo.untracked.is_empty() {
             writeln!(
                 self.ctx.stdout,
                 "nothing added to commit but untracked files present"
-            );
+            )
+            .map_err(|e| e.to_string())
         } else {
-            writeln!(self.ctx.stdout, "nothing to commit, working tree clean");
+            writeln!(self.ctx.stdout, "nothing to commit, working tree clean")
+                .map_err(|e| e.to_string())
         }
     }
 
@@ -166,7 +168,7 @@ where
             .load_for_update()
             .expect("failed to load index");
 
-        self.repo.initialize_status();
+        self.repo.initialize_status()?;
 
         self.repo
             .index

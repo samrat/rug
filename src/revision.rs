@@ -37,9 +37,9 @@ pub struct HintedError {
 
 impl fmt::Display for HintedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n", self.message);
+        write!(f, "{}\n", self.message)?;
         for line in &self.hint {
-            write!(f, "hint: {}\n", line);
+            write!(f, "hint: {}\n", line)?;
         }
 
         Ok(())

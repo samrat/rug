@@ -65,11 +65,13 @@ impl Repository {
         }
     }
 
-    pub fn initialize_status(&mut self) {
+    pub fn initialize_status(&mut self) -> Result<(), String> {
         self.scan_workspace(&self.root_path.clone()).unwrap();
         self.load_head_tree();
-        self.check_index_entries();
+        self.check_index_entries().map_err(|e| e.to_string())?;
         self.collect_deleted_head_files();
+
+        Ok(())
     }
 
     fn collect_deleted_head_files(&mut self) {

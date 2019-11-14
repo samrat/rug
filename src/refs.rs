@@ -88,8 +88,7 @@ impl Refs {
         }
 
         File::create(&path).expect("failed to create refs file for branch");
-        self.update_ref_file(&path, start_oid);
-
-        Ok(())
+        self.update_ref_file(&path, start_oid)
+            .map_err(|e| e.to_string())
     }
 }

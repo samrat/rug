@@ -26,7 +26,5 @@ where
         ctx.stdout,
         "Initialized empty Jit repository in {:?}\n",
         git_path
-    );
-
-    Ok(())
+    ).map_err(|e| e.to_string())
 }

@@ -1,5 +1,4 @@
 use crate::database::tree::TreeEntry;
-use crate::database::ParsedObject;
 use crate::repository::Repository;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -38,10 +37,12 @@ impl<'a> Migration<'a> {
             rmdirs: BTreeSet::new(),
         }
     }
-    pub fn apply_changes(&mut self) {
+    pub fn apply_changes(&mut self) -> Result<(), String> {
         self.plan_changes();
-        self.update_workspace();
+        self.update_workspace()?;
         self.update_index();
+
+        Ok(())
     }
 
     fn plan_changes(&mut self) {
@@ -79,13 +80,13 @@ impl<'a> Migration<'a> {
         }
     }
 
-    fn update_workspace(&mut self) {
+    fn update_workspace(&mut self) -> Result<(), String> {
         self.repo.workspace.apply_migration(
             &mut self.repo.database,
             &self.changes,
             &self.rmdirs,
             &self.mkdirs,
-        );
+        )
     }
 
     fn update_index(&mut self) {
