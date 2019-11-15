@@ -243,7 +243,7 @@ impl Repository {
             let stat = stat.expect("empty stat");
             self.index.update_entry_stat(&mut entry, &stat);
         } else {
-            self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Modified);
+            self.record_change(&entry.path, ChangeKind::Workspace, status);
         }
     }
 
