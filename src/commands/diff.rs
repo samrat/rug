@@ -73,6 +73,7 @@ where
                     let a = self.from_head(path);
                     self.print_diff(a, self.from_nothing(path))?;
                 }
+                state => panic!("NYI: {:?}", state),
             }
         }
 
@@ -93,6 +94,7 @@ where
                     let a = self.from_index(path);
                     self.print_diff(a, self.from_nothing(path))?;
                 }
+                state => panic!("NYI: {:?}", state),
             }
         }
         Ok(())

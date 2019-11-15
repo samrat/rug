@@ -15,11 +15,13 @@ use std::path::{Path, PathBuf};
 pub mod migration;
 use migration::Migration;
 
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub enum ChangeType {
     Added,
     Modified,
     Deleted,
+    Untracked,
+    NoChange,
 }
 
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
@@ -169,45 +171,87 @@ impl Repository {
         changes_map.insert(path.to_string(), change_type);
     }
 
+    fn compare_index_to_workspace(
+        &self,
+        entry: Option<&index::Entry>,
+        stat: Option<&fs::Metadata>,
+    ) -> ChangeType {
+        if entry.is_none() {
+            return ChangeType::Untracked;
+        }
+        if stat.is_none() {
+            return ChangeType::Deleted;
+        }
+
+        // Checks above ensure `entry` and `stat` are not None below
+        // this
+        let entry = entry.unwrap();
+        let stat = stat.unwrap();
+
+        if !entry.stat_match(&stat) {
+            return ChangeType::Modified;
+        }
+
+        if entry.times_match(&stat) {
+            return ChangeType::NoChange;
+        }
+
+        let data = self
+            .workspace
+            .read_file(&entry.path)
+            .expect("failed to read file");
+        let blob = Blob::new(data.as_bytes());
+        let oid = blob.get_oid();
+
+        if entry.oid != oid {
+            return ChangeType::Modified;
+        }
+        ChangeType::NoChange
+    }
+
+    fn compare_tree_to_index(
+        &self,
+        item: Option<&TreeEntry>,
+        entry: Option<&index::Entry>,
+    ) -> ChangeType {
+        if item.is_none() && entry.is_none() {
+            return ChangeType::NoChange;
+        }
+        if item.is_none() {
+            return ChangeType::Added;
+        }
+        if entry.is_none() {
+            return ChangeType::Deleted;
+        }
+
+        // Checks above ensure `entry` and `stat` are not None below
+        // this
+        let entry = entry.unwrap();
+        let item = item.unwrap();
+
+        if !(entry.mode == item.mode() && entry.oid == item.get_oid()) {
+            return ChangeType::Modified;
+        }
+        ChangeType::NoChange
+    }
+
     /// Adds modified entries to self.changed
     fn check_index_against_workspace(&mut self, mut entry: &mut index::Entry) {
-        if let Some(stat) = self.stats.get(&entry.path) {
-            if !entry.stat_match(&stat) {
-                return self.record_change(
-                    &entry.path,
-                    ChangeKind::Workspace,
-                    ChangeType::Modified,
-                );
-            }
-            if entry.times_match(&stat) {
-                return;
-            }
-
-            let data = self
-                .workspace
-                .read_file(&entry.path)
-                .expect("failed to read file");
-            let blob = Blob::new(data.as_bytes());
-            let oid = blob.get_oid();
-
-            if entry.oid == oid {
-                self.index.update_entry_stat(&mut entry, &stat);
-            } else {
-                self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Modified);
-            }
+        let stat = self.stats.get(&entry.path);
+        let status = self.compare_index_to_workspace(Some(entry), stat);
+        if status == ChangeType::NoChange {
+            let stat = stat.expect("empty stat");
+            self.index.update_entry_stat(&mut entry, &stat);
         } else {
-            self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Deleted)
+            self.record_change(&entry.path, ChangeKind::Workspace, ChangeType::Modified);
         }
     }
 
     fn check_index_against_head_tree(&mut self, entry: &mut index::Entry) {
         let item = self.head_tree.get(&entry.path);
-        if let Some(item) = item {
-            if !(item.mode() == entry.mode && item.get_oid() == entry.oid) {
-                self.record_change(&entry.path, ChangeKind::Index, ChangeType::Modified);
-            }
-        } else {
-            self.record_change(&entry.path, ChangeKind::Index, ChangeType::Added);
+        let status = self.compare_tree_to_index(item, Some(entry));
+        if status != ChangeType::NoChange {
+            self.record_change(&entry.path, ChangeKind::Index, status);
         }
     }
 
