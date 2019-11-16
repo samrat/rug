@@ -161,10 +161,12 @@ impl Workspace {
 
     fn remove_file_or_dir(path: &Path) -> std::io::Result<()> {
         if path.is_dir() {
-            std::fs::remove_dir(path)
-        } else {
-            std::fs::remove_file(path)
+            return std::fs::remove_dir(path);
+        } else if path.is_file() {
+            return std::fs::remove_file(path);
         }
+
+        Ok(())
     }
 
     fn remove_directory(&self, path: &Path) -> std::io::Result<()> {

@@ -33,7 +33,10 @@ where
 
     pub fn run(&mut self) -> Result<(), String> {
         assert!(self.ctx.args.len() > 2, "no target provided");
-        self.repo.index.load_for_update().map_err(|e| e.to_string())?;
+        self.repo
+            .index
+            .load_for_update()
+            .map_err(|e| e.to_string())?;
 
         let target = &self.ctx.args[2];
         let current_oid = self.repo.refs.read_head().expect("failed to read HEAD");
@@ -81,5 +84,108 @@ where
             std::path::Path::new(""),
         );
         td.changes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::commands::tests::*;
+    use std::collections::HashMap;
+    use std::{thread, time};
+
+    lazy_static! {
+        static ref BASE_FILES: HashMap<&'static str, &'static str> = {
+            let mut m = HashMap::new();
+            m.insert("1.txt", "1");
+            m.insert("outer/2.txt", "2");
+            m.insert("outer/inner/3.txt", "3");
+            m
+        };
+    }
+
+    fn commit_all(cmd_helper: &mut CommandHelper) {
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.commit("change");
+    }
+
+    fn commit_and_checkout(cmd_helper: &mut CommandHelper, revision: &str) {
+        commit_all(cmd_helper);
+        cmd_helper.jit_cmd(&["checkout", revision]).unwrap();
+    }
+
+    fn before(cmd_helper: &mut CommandHelper) {
+        cmd_helper.jit_cmd(&["init"]).unwrap();
+        for (filename, contents) in BASE_FILES.iter() {
+            cmd_helper
+                .write_file(filename, contents.as_bytes())
+                .unwrap();
+        }
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.commit("first");
+    }
+
+    fn assert_stale_file(error: Result<(String, String), String>, filename: &str) {
+        if let Err(error) = error {
+            assert_eq!(error,
+                       format!("Your local changes to the following files would be overwritten by checkout:\n\t{}\nPlease commit your changes to stash them before you switch branches\n\n", filename));
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn updates_a_changed_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_and_checkout(&mut cmd_helper, "@^");
+        cmd_helper.assert_workspace(BASE_FILES.clone());
+    }
+
+    #[test]
+    fn fails_to_update_a_modified_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"conflict").unwrap();
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn fails_to_update_a_modified_equal_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.write_file("1.txt", b"1").unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn fails_to_update_a_changed_mode_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.make_executable("1.txt");
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn restores_a_deleted_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("1.txt");
+        cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
+        cmd_helper.assert_workspace(BASE_FILES.clone());
     }
 }

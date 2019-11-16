@@ -49,19 +49,19 @@ where
         "status" => {
             let mut cmd = Status::new(ctx);
             cmd.run()
-        },
+        }
         "diff" => {
             let mut cmd = Diff::new(ctx);
             cmd.run()
-        },
+        }
         "branch" => {
             let mut cmd = Branch::new(ctx);
             cmd.run()
-        },
+        }
         "checkout" => {
             let mut cmd = Checkout::new(ctx);
             cmd.run()
-        },
+        }
         _ => Err(format!("invalid command: {}\n", command)),
     }
 }
@@ -73,7 +73,9 @@ mod tests {
     use crate::util::*;
     use filetime::FileTime;
     use std::env;
+    use std::fmt::Debug;
     use std::fs::{self, File, OpenOptions};
+    use std::hash::Hash;
     use std::io::Cursor;
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
@@ -246,6 +248,20 @@ mod tests {
                 assert!(false);
             }
         }
+
+        pub fn assert_workspace(&self, expected_contents: HashMap<&str, &str>) {
+            let mut files = HashMap::new();
+            for file in repo(&self.repo_path)
+                .workspace
+                .list_files(&self.repo_path)
+                .unwrap()
+            {
+                let file_contents = repo(&self.repo_path).workspace.read_file(&file).unwrap();
+                files.insert(file, file_contents);
+            }
+
+            assert_maps_equal(expected_contents, files);
+        }
     }
 
     impl Drop for CommandHelper {
@@ -256,6 +272,15 @@ mod tests {
 
     pub fn assert_output(stream: &str, expected: &str) {
         assert_eq!(stream, expected);
+    }
+
+    fn assert_maps_equal(a: HashMap<&str, &str>, b: HashMap<String, String>) {
+        assert_eq!(a.len(), b.len());
+        for (k, v) in a {
+            if let Some(bv) = b.get(k) {
+                assert_eq!(v, *bv);
+            }
+        }
     }
 
 }
