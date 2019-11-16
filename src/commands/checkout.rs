@@ -91,7 +91,6 @@ where
 mod tests {
     use crate::commands::tests::*;
     use std::collections::HashMap;
-    use std::{thread, time};
 
     lazy_static! {
         static ref BASE_FILES: HashMap<&'static str, &'static str> = {
@@ -130,7 +129,7 @@ mod tests {
             assert_eq!(error,
                        format!("Your local changes to the following files would be overwritten by checkout:\n\t{}\nPlease commit your changes to stash them before you switch branches\n\n", filename));
         } else {
-            assert!(false);
+            assert!(false, format!("Expected Err but got {:?}", error));
         }
     }
 
@@ -172,7 +171,7 @@ mod tests {
         cmd_helper.write_file("1.txt", b"changed").unwrap();
         commit_all(&mut cmd_helper);
 
-        cmd_helper.make_executable("1.txt");
+        cmd_helper.make_executable("1.txt").unwrap();
 
         assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
     }
@@ -184,8 +183,111 @@ mod tests {
         cmd_helper.write_file("1.txt", b"changed").unwrap();
         commit_all(&mut cmd_helper);
 
-        cmd_helper.delete("1.txt");
+        cmd_helper.delete("1.txt").unwrap();
         cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
         cmd_helper.assert_workspace(BASE_FILES.clone());
+    }
+
+    #[test]
+    fn restores_files_from_a_deleted_directory() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper
+            .write_file("outer/inner/3.txt", b"changed")
+            .unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer").unwrap();
+        cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
+
+        let mut expected_workspace = BASE_FILES.clone();
+        expected_workspace.remove("outer/2.txt");
+        cmd_helper.assert_workspace(expected_workspace);
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(" D outer/2.txt\n");
+    }
+
+    #[test]
+    fn fails_to_update_a_staged_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.write_file("1.txt", b"conflict").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn updates_a_staged_equal_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.write_file("1.txt", b"1").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
+
+        cmd_helper.assert_workspace(BASE_FILES.clone());
+    }
+
+    #[test]
+    fn fails_to_update_a_staged_changed_mode_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.make_executable("1.txt").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn fails_to_update_an_unindexed_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("1.txt").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn fails_to_update_an_unindexed_and_untracked_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("1.txt").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        cmd_helper.write_file("1.txt", b"conflict").unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "1.txt");
+    }
+
+    #[test]
+    fn fails_to_update_an_unindexed_directory() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("outer/inner/3.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+        
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
     }
 }

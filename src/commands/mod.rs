@@ -73,9 +73,7 @@ mod tests {
     use crate::util::*;
     use filetime::FileTime;
     use std::env;
-    use std::fmt::Debug;
     use std::fs::{self, File, OpenOptions};
-    use std::hash::Hash;
     use std::io::Cursor;
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;

@@ -108,7 +108,8 @@ impl Workspace {
         self.apply_change_list(database, changes, Action::Delete)
             .map_err(|e| e.to_string())?;
         for dir in rmdirs.iter().rev() {
-            self.remove_directory(dir).map_err(|e| e.to_string())?;
+            let dir_path = self.path.join(dir);
+            self.remove_directory(&dir_path).map_err(|e| e.to_string())?;
         }
 
         for dir in mkdirs.iter() {
@@ -176,12 +177,15 @@ impl Workspace {
 
     fn make_directory(&self, dirname: &Path) -> std::io::Result<()> {
         let path = self.path.join(dirname);
-        let stat = self.stat_file(dirname.to_str().expect("conversion to str failed"))?;
 
-        if stat.is_file() {
-            std::fs::remove_file(&path)?;
-        }
-        if !stat.is_dir() {
+        if let Ok(stat) = self.stat_file(dirname.to_str().expect("conversion to str failed")) {
+            if stat.is_file() {
+                std::fs::remove_file(&path)?;
+            }
+            if !stat.is_dir() {
+                std::fs::create_dir(&path)?;
+            }
+        } else {
             std::fs::create_dir(&path)?;
         }
         Ok(())

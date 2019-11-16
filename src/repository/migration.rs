@@ -58,9 +58,6 @@ pub enum ConflictType {
     UntrackedRemoved,
 }
 
-#[derive(Debug)]
-struct Conflict {}
-
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub enum Action {
     Create,
@@ -134,6 +131,7 @@ impl<'a> Migration<'a> {
         let entry = self.repo.index.entry_for_path(path_str).cloned();
         if self.index_differs_from_trees(entry.as_ref(), old_item.as_ref(), new_item.as_ref()) {
             self.insert_conflict(&ConflictType::StaleFile, &path);
+            return;
         }
 
         let stat = self.repo.workspace.stat_file(path_str).ok();
@@ -173,21 +171,18 @@ impl<'a> Migration<'a> {
                 continue;
             }
 
-            let parent_stat = self
-                .repo
-                .workspace
-                .stat_file(parent_path_str)
-                .expect("failed to stat parent dir");
-            if parent_stat.is_dir() {
-                continue;
-            }
+            if let Ok(parent_stat) = self.repo.workspace.stat_file(parent_path_str) {
+                if parent_stat.is_dir() {
+                    continue;
+                }
 
-            if self
-                .repo
-                .is_trackable_path(parent_path_str, &parent_stat)
-                .unwrap_or(false)
-            {
-                return Some(parent.to_path_buf());
+                if self
+                    .repo
+                    .is_trackable_path(parent_path_str, &parent_stat)
+                    .unwrap_or(false)
+                {
+                    return Some(parent.to_path_buf());
+                }
             }
         }
         None
