@@ -84,7 +84,7 @@ impl Repository {
                 .collect()
         };
         for path in paths {
-            if !self.index.is_tracked_path(&path) {
+            if !self.index.is_tracked_file(&path) {
                 self.record_change(&path, ChangeKind::Index, ChangeType::Deleted);
             }
         }
@@ -258,7 +258,7 @@ impl Repository {
     /// Check if path is trackable but not currently tracked
     fn is_trackable_path(&self, path: &str, stat: &fs::Metadata) -> Result<bool, std::io::Error> {
         if stat.is_file() {
-            return Ok(!self.index.is_tracked(path));
+            return Ok(!self.index.is_tracked_file(path));
         }
 
         let items = self.workspace.list_dir(&self.workspace.abs_path(path))?;
@@ -277,7 +277,7 @@ impl Repository {
             }
         }
 
-        return Ok(false);
+        Ok(false)
     }
 
     pub fn migration(

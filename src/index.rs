@@ -420,12 +420,12 @@ impl Index {
         self.lockfile.rollback()
     }
 
-    pub fn is_tracked_path(&self, pathname: &str) -> bool {
+    pub fn is_tracked_file(&self, pathname: &str) -> bool {
         self.entries.contains_key(pathname)
     }
 
     pub fn is_tracked(&self, pathname: &str) -> bool {
-        self.is_tracked_path(pathname) || self.parents.contains_key(pathname)
+        self.is_tracked_file(pathname) || self.parents.contains_key(pathname)
     }
 
     pub fn update_entry_stat(&mut self, entry: &mut Entry, stat: &fs::Metadata) {

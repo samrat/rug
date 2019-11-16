@@ -290,4 +290,17 @@ mod tests {
         
         assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
     }
+
+    #[test]
+    fn fails_to_update_with_a_file_at_a_parent_path() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("outer/inner/3.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.write_file("outer/inner", b"conflict").unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
+    }
 }
