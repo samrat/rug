@@ -47,18 +47,18 @@ impl<'a> TreeDiff<'a> {
             let path = prefix.join(name);
             let other = b_entries.get(name);
 
-            let (tree_b, blob_b) = if let Some(b_entry) = other {
+            let tree_b = if let Some(b_entry) = other {
                 if b_entry == entry {
                     continue;
                 }
 
                 if b_entry.is_tree() {
-                    (Some(b_entry.get_oid()), None)
+                    Some(b_entry.get_oid())
                 } else {
-                    (None, Some(b_entry.get_oid()))
+                    None
                 }
             } else {
-                (None, None)
+                None
             };
 
             let tree_a = if entry.is_tree() {
@@ -69,16 +69,13 @@ impl<'a> TreeDiff<'a> {
 
             self.compare_oids(tree_a, tree_b, &path);
 
-            let blob_a = if entry.is_tree() {
-                None
-            } else {
-                Some(entry.get_oid())
+            let blobs = match (!entry.is_tree(), other.map(|e| !e.is_tree()).unwrap_or(false)) {
+                (true, true) => (Some(entry.clone()), other.cloned()),
+                (true, false) => (Some(entry.clone()), None),
+                (false, true) => (None, other.cloned()),
+                (false, false) => continue,
             };
-
-            if blob_a.is_some() || blob_b.is_some() {
-                self.changes
-                    .insert(path, (Some(entry.clone()), other.cloned()));
-            }
+            self.changes.insert(path, blobs);
         }
     }
 

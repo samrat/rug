@@ -805,7 +805,9 @@ D  outer/inner/3.txt\n",
         cmd_helper.delete("outer/2.txt").unwrap();
         commit_all(&mut cmd_helper);
 
-        cmd_helper.write_file("outer/2.txt/extra.log", b"conflict").unwrap();
+        cmd_helper
+            .write_file("outer/2.txt/extra.log", b"conflict")
+            .unwrap();
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
         cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
 
@@ -813,4 +815,18 @@ D  outer/inner/3.txt\n",
         cmd_helper.clear_stdout();
         cmd_helper.assert_status("");
     }
+
+    #[test]
+    fn replaces_a_file_with_a_directory() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.write_file("outer/inner", b"in").unwrap();
+        commit_and_checkout(&mut cmd_helper, "@^");
+
+        cmd_helper.assert_workspace(BASE_FILES.clone());
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
+    }
+
 }
