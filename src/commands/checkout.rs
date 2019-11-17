@@ -829,4 +829,71 @@ D  outer/inner/3.txt\n",
         cmd_helper.assert_status("");
     }
 
+    #[test]
+    fn replaces_a_directory_with_a_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.delete("outer/2.txt").unwrap();
+        cmd_helper
+            .write_file("outer/2.txt/nested.log", b"nested")
+            .unwrap();
+        commit_and_checkout(&mut cmd_helper, "@^");
+
+        cmd_helper.assert_workspace(BASE_FILES.clone());
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
+    }
+
+    #[test]
+    fn maintains_workspace_modifications() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.write_file("outer/2.txt", b"hello").unwrap();
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
+
+        let mut expected_workspace = HashMap::new();
+        expected_workspace.insert("1.txt", "1");
+        expected_workspace.insert("outer/2.txt", "hello");
+
+        cmd_helper.assert_workspace(expected_workspace);
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(
+            " M outer/2.txt
+ D outer/inner/3.txt\n",
+        );
+    }
+
+    #[test]
+    fn maintains_index_modifications() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("1.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.write_file("outer/2.txt", b"hello").unwrap();
+        cmd_helper
+            .write_file("outer/inner/4.txt", b"world")
+            .unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.jit_cmd(&["checkout", "@^"]).unwrap();
+
+        let mut expected_workspace = BASE_FILES.clone();
+        expected_workspace.insert("outer/2.txt", "hello");
+        expected_workspace.insert("outer/inner/4.txt", "world");
+
+        cmd_helper.assert_workspace(expected_workspace);
+
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status(
+            "M  outer/2.txt
+A  outer/inner/4.txt\n",
+        );
+    }
+
 }
