@@ -18,7 +18,7 @@ lazy_static! {
         m.insert(
             ConflictType::StaleDirectory,
             (
-                "Updating the following directories would lose untracekdd files in them:",
+                "Updating the following directories would lose untracked files in them:",
                 "\n",
             ),
         );
