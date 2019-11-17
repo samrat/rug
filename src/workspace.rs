@@ -109,7 +109,7 @@ impl Workspace {
             .map_err(|e| e.to_string())?;
         for dir in rmdirs.iter().rev() {
             let dir_path = self.path.join(dir);
-            self.remove_directory(&dir_path).map_err(|e| e.to_string())?;
+            self.remove_directory(&dir_path).unwrap_or(());
         }
 
         for dir in mkdirs.iter() {
@@ -162,12 +162,12 @@ impl Workspace {
 
     fn remove_file_or_dir(path: &Path) -> std::io::Result<()> {
         if path.is_dir() {
-            return std::fs::remove_dir(path);
+            std::fs::remove_dir_all(path)
         } else if path.is_file() {
-            return std::fs::remove_file(path);
+            std::fs::remove_file(path)
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
     fn remove_directory(&self, path: &Path) -> std::io::Result<()> {

@@ -260,6 +260,10 @@ mod tests {
 
             assert_maps_equal(expected_contents, files);
         }
+
+        pub fn assert_noent(&self, filename: &str) {
+            assert_eq!(false, Path::new(filename).exists())
+        }
     }
 
     impl Drop for CommandHelper {
