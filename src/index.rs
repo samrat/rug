@@ -303,7 +303,7 @@ impl Index {
     }
 
     fn remove_entry(&mut self, pathname: &str) {
-        if let Some(entry) = self.entries.get(pathname).cloned() {
+        if let Some(entry) = self.entries.remove(pathname) {
             for dirname in entry.parent_dirs() {
                 if let Some(ref mut children_set) = self.parents.get_mut(dirname) {
                     children_set.remove(pathname);
