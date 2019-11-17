@@ -281,13 +281,15 @@ mod tests {
     fn fails_to_update_an_unindexed_directory() {
         let mut cmd_helper = CommandHelper::new();
         before(&mut cmd_helper);
-        cmd_helper.write_file("outer/inner/3.txt", b"changed").unwrap();
+        cmd_helper
+            .write_file("outer/inner/3.txt", b"changed")
+            .unwrap();
         commit_all(&mut cmd_helper);
 
         cmd_helper.delete("outer/inner").unwrap();
         cmd_helper.delete(".git/index").unwrap();
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
-        
+
         assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
     }
 
@@ -295,12 +297,91 @@ mod tests {
     fn fails_to_update_with_a_file_at_a_parent_path() {
         let mut cmd_helper = CommandHelper::new();
         before(&mut cmd_helper);
-        cmd_helper.write_file("outer/inner/3.txt", b"changed").unwrap();
+        cmd_helper
+            .write_file("outer/inner/3.txt", b"changed")
+            .unwrap();
         commit_all(&mut cmd_helper);
 
         cmd_helper.delete("outer/inner").unwrap();
         cmd_helper.write_file("outer/inner", b"conflict").unwrap();
 
         assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
+    }
+
+    #[test]
+    fn fails_to_update_with_a_staged_file_at_a_parent_path() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper
+            .write_file("outer/inner/3.txt", b"changed")
+            .unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.write_file("outer/inner", b"conflict").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
+    }
+
+    #[test]
+    fn fails_to_update_with_an_unstaged_file_at_a_parent_path() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper
+            .write_file("outer/inner/3.txt", b"changed")
+            .unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/inner").unwrap();
+        cmd_helper.delete(".git/index").unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        cmd_helper.write_file("outer/inner", b"conflict").unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/inner/3.txt");
+    }
+
+    #[test]
+    fn fails_to_update_with_a_file_at_a_child_path() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("outer/2.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/2.txt").unwrap();
+        cmd_helper
+            .write_file("outer/2.txt/extra.log", b"conflict")
+            .unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/2.txt");
+    }
+
+    #[test]
+    fn fails_to_update_with_a_staged_file_at_a_child_path() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("outer/2.txt", b"changed").unwrap();
+        commit_all(&mut cmd_helper);
+
+        cmd_helper.delete("outer/2.txt").unwrap();
+        cmd_helper
+            .write_file("outer/2.txt/extra.log", b"conflict")
+            .unwrap();
+        cmd_helper.jit_cmd(&["add", "."]).unwrap();
+
+        assert_stale_file(cmd_helper.jit_cmd(&["checkout", "@^"]), "outer/2.txt");
+    }
+
+    #[test]
+    fn removes_a_file() {
+        let mut cmd_helper = CommandHelper::new();
+        before(&mut cmd_helper);
+        cmd_helper.write_file("94.txt", b"94").unwrap();
+        commit_and_checkout(&mut cmd_helper, "@^");
+
+        cmd_helper.assert_workspace(BASE_FILES.clone());
+        cmd_helper.clear_stdout();
+        cmd_helper.assert_status("");
     }
 }

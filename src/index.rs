@@ -261,11 +261,12 @@ impl Index {
         header_bytes.extend_from_slice(&2u32.to_be_bytes()); // version no.
         header_bytes.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
         writer.write(&header_bytes)?;
-        for (_key, entry) in self.entries.clone().iter() {
+        for (_key, entry) in self.entries.iter() {
             writer.write(&entry.to_bytes())?;
         }
         writer.write_checksum()?;
         lock.commit()?;
+
         Ok(())
     }
 
@@ -292,25 +293,17 @@ impl Index {
     }
 
     pub fn remove(&mut self, pathname: &str) {
-        let children = self.parents.get(pathname).unwrap().clone();
-        for child in children {
-            self.remove_entry(&child);
+        if let Some(children) = self.parents.get(pathname).cloned() {
+            for child in children {
+                self.remove_entry(&child);
+            }
         }
         self.remove_entry(pathname);
+        self.changed = true;
     }
 
     fn remove_entry(&mut self, pathname: &str) {
-        let entry = {
-            if let Some(entry) = self.entries.get(pathname) {
-                Some(entry.clone())
-            } else {
-                None
-            }
-        };
-
-        if let Some(entry) = entry {
-            self.entries.remove(pathname);
-
+        if let Some(entry) = self.entries.get(pathname).cloned() {
             for dirname in entry.parent_dirs() {
                 if let Some(ref mut children_set) = self.parents.get_mut(dirname) {
                     children_set.remove(pathname);

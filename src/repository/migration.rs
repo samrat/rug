@@ -167,7 +167,7 @@ impl<'a> Migration<'a> {
         let dirname = path.parent().expect("failed to get dirname");
         for parent in dirname.ancestors() {
             let parent_path_str = parent.to_str().unwrap();
-            if parent_path_str == "." {
+            if parent_path_str == "" {
                 continue;
             }
 
