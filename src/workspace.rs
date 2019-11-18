@@ -1,10 +1,11 @@
-use crate::database::tree::TreeEntry;
+use crate::database::tree::{TreeEntry, TREE_MODE};
 use crate::database::{Database, ParsedObject};
 use crate::repository::migration::Action;
 use std::collections::{BTreeSet, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 lazy_static! {
@@ -129,7 +130,7 @@ impl Workspace {
         action: Action,
     ) -> std::io::Result<()> {
         let changes = changes.get(&action).unwrap().clone();
-        for (filename, entry) in changes {
+        for (filename, entry) in changes.clone() {
             let path = self.path.join(filename);
             Self::remove_file_or_dir(&path)?;
 
@@ -141,13 +142,20 @@ impl Workspace {
                 .write(true)
                 .create_new(true)
                 .open(&path)?;
-            let entry_oid = entry
-                .clone()
-                .expect("entry missing for non-delete")
-                .get_oid();
-            let data = Self::blob_data(database, &entry_oid);
 
-            file.write_all(&data)?;
+            let entry = entry
+                .expect("entry missing for non-delete");
+
+            if entry.mode() != TREE_MODE {
+                let data = Self::blob_data(database, &entry.get_oid());
+                file.write_all(&data)?;
+
+                // Set mode
+                let metadata = file.metadata()?;
+                let mut permissions = metadata.permissions();
+                permissions.set_mode(entry.mode());
+                fs::set_permissions(path, permissions)?;
+            }
         }
 
         Ok(())
