@@ -130,7 +130,7 @@ impl Workspace {
         action: Action,
     ) -> std::io::Result<()> {
         let changes = changes.get(&action).unwrap().clone();
-        for (filename, entry) in changes.clone() {
+        for (filename, entry) in changes {
             let path = self.path.join(filename);
             Self::remove_file_or_dir(&path)?;
 
