@@ -3,9 +3,6 @@ use crate::repository::Repository;
 use regex::{Regex, RegexSet};
 use std::collections::HashMap;
 use std::fmt;
-use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
 
 lazy_static! {
     static ref INVALID_NAME: RegexSet = {
@@ -102,10 +99,8 @@ impl<'a> Revision<'a> {
                 } else {
                     Err(self.errors.clone())
                 }
-            },
-            None => {
-                Err(self.errors.clone())
             }
+            None => Err(self.errors.clone()),
         }
     }
 
@@ -132,8 +127,9 @@ impl<'a> Revision<'a> {
     }
 
     fn read_ref(&mut self, name: &str) -> Option<String> {
-        if let Some(path) = self.path_for_name(name) {
-            Some(Self::read_ref_file(&path))
+        let symref = self.repo.refs.read_ref(name);
+        if symref.is_some() {
+            symref
         } else {
             let candidates = self.repo.database.prefix_match(name);
             if candidates.len() == 1 {
@@ -171,27 +167,6 @@ impl<'a> Revision<'a> {
             hint.push(obj_message);
         }
         self.errors.push(HintedError { message, hint });
-    }
-
-    fn path_for_name(&self, name: &str) -> Option<PathBuf> {
-        let git_path = self.repo.root_path.join(".git");
-        let refs_path = git_path.join("refs");
-        let heads_path = git_path.join("heads");
-
-        let prefixes = [git_path, refs_path, heads_path];
-        for prefix in &prefixes {
-            if prefix.join(name).exists() {
-                return Some(prefix.join(name));
-            }
-        }
-        None
-    }
-
-    fn read_ref_file(path: &Path) -> String {
-        let mut ref_file = File::open(&path).expect("failed to open ref file");
-        let mut contents = String::new();
-        ref_file.read_to_string(&mut contents).unwrap();
-        contents.trim().to_string()
     }
 
     fn commit_parent(&mut self, oid: &str) -> Option<String> {

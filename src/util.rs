@@ -2,6 +2,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::fmt::Write;
 use std::num::ParseIntError;
+use std::path::Path;
 
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -20,4 +21,12 @@ pub fn encode_hex(bytes: &[u8]) -> String {
 
 pub fn generate_temp_name() -> String {
     thread_rng().sample_iter(&Alphanumeric).take(6).collect()
+}
+
+pub fn relative_path_from(path: &Path, from: &Path) -> String {
+    path.strip_prefix(from)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string()
 }

@@ -1,10 +1,9 @@
+use crate::lockfile::Lockfile;
+use crate::util;
+use regex::{Regex, RegexSet};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-use crate::lockfile::Lockfile;
-
-use regex::RegexSet;
 
 lazy_static! {
     static ref INVALID_FILENAME: RegexSet = {
@@ -19,6 +18,12 @@ lazy_static! {
         ])
         .unwrap()
     };
+    static ref SYMREF: Regex = Regex::new(r"^ref: (.+)$").unwrap();
+}
+
+pub enum Ref {
+    Ref { oid: String },
+    SymRef { path: String },
 }
 
 pub struct Refs {
@@ -34,6 +39,10 @@ impl Refs {
 
     fn head_path(&self) -> PathBuf {
         (*self.pathname).join("HEAD")
+    }
+
+    fn refs_path(&self) -> PathBuf {
+        (*self.pathname).join("refs")
     }
 
     fn heads_path(&self) -> PathBuf {
@@ -52,6 +61,17 @@ impl Refs {
         self.update_ref_file(&self.head_path(), oid)
     }
 
+    pub fn set_head(&self, revision: &str, oid: &str) -> Result<(), std::io::Error> {
+        let path = self.heads_path().join(revision);
+
+        if path.exists() {
+            let relative = util::relative_path_from(Path::new(&path), &self.pathname);
+            self.update_ref_file(&self.head_path(), &format!("ref: {}", relative))
+        } else {
+            self.update_ref_file(&self.head_path(), oid)
+        }
+    }
+
     // NOTE: Jumping a bit ahead of the book so that we can have a
     // `master` branch
     pub fn update_master_ref(&self, oid: &str) -> Result<(), std::io::Error> {
@@ -66,13 +86,54 @@ impl Refs {
     }
 
     pub fn read_head(&self) -> Option<String> {
-        if self.head_path().as_path().exists() {
-            let mut head_file = File::open(self.head_path()).unwrap();
-            let mut contents = String::new();
-            head_file.read_to_string(&mut contents).unwrap();
-            Some(contents.trim().to_string())
+        self.read_symref(&self.head_path())
+    }
+
+    fn path_for_name(&self, name: &str) -> Option<PathBuf> {
+        let prefixes = [self.pathname.clone(), self.refs_path(), self.heads_path()];
+        for prefix in &prefixes {
+            if prefix.join(name).exists() {
+                return Some(prefix.join(name));
+            }
+        }
+        None
+    }
+
+    pub fn read_ref(&self, filename: &str) -> Option<String> {
+        if let Some(path) = self.path_for_name(filename) {
+            self.read_symref(&path)
         } else {
             None
+        }
+    }
+
+    pub fn read_oid_or_symref(path: &Path) -> Option<Ref> {
+        if path.exists() {
+            let mut file = File::open(path).unwrap();
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).unwrap();
+
+            if let Some(caps) = SYMREF.captures(&contents.trim()) {
+                Some(Ref::SymRef {
+                    path: caps[1].to_string(),
+                })
+            } else {
+                Some(Ref::Ref {
+                    oid: contents.trim().to_string(),
+                })
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn read_symref(&self, path: &Path) -> Option<String> {
+        let r#ref = Self::read_oid_or_symref(path);
+
+        match r#ref {
+            Some(Ref::SymRef { path }) => self.read_symref(&self.pathname.join(&path)),
+            Some(Ref::Ref { oid }) => Some(oid),
+            None => None,
         }
     }
 

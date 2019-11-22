@@ -110,7 +110,7 @@ impl Database {
             .read(true)
             .create(false)
             .open(self.object_path(oid))
-            .expect("failed to open file");
+            .expect(&format!("failed to open file: {:?}", self.object_path(oid)));
         file.read_to_end(&mut contents)
             .expect("reading file failed");
 
@@ -225,11 +225,11 @@ impl Database {
                         .file_name()
                         .expect("could not get filename")
                         .to_str()
-                        .expect("convertion from OsStr to str failed"),
+                        .expect("conversion from OsStr to str failed"),
                     f.unwrap()
                         .file_name()
                         .to_str()
-                        .expect("convertion from OsStr to str failed")
+                        .expect("conversion from OsStr to str failed")
                 )
             })
             .filter(|o| o.starts_with(name))

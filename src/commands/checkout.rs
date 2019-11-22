@@ -38,7 +38,7 @@ where
             .load_for_update()
             .map_err(|e| e.to_string())?;
 
-        let target = &self.ctx.args[2];
+        let target = &self.ctx.args[2].clone();
         let current_oid = self.repo.refs.read_head().expect("failed to read HEAD");
 
         let mut revision = Revision::new(&mut self.repo, target);
@@ -66,7 +66,7 @@ where
         self.repo.index.write_updates().map_err(|e| e.to_string())?;
         self.repo
             .refs
-            .update_head(&target_oid)
+            .set_head(&target, &target_oid)
             .map_err(|e| e.to_string())?;
 
         Ok(())
