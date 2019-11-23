@@ -138,9 +138,8 @@ impl Refs {
 
         let r#ref = Self::read_oid_or_symref(path);
         match r#ref {
-            Some(Ref::Ref { oid: _ }) => Self::write_lockfile(lock, &oid),
+            None | Some(Ref::Ref { oid: _ }) => Self::write_lockfile(lock, &oid),
             Some(Ref::SymRef { path }) => self.update_symref(&self.pathname.join(path), oid),
-            None => Err(io::Error::new(io::ErrorKind::Other, "no ref found")),
         }
     }
 
