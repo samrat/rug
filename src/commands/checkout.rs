@@ -1,11 +1,25 @@
 use crate::commands::CommandContext;
+use crate::database::object::Object;
 use crate::database::tree::TreeEntry;
 use crate::database::tree_diff::TreeDiff;
+use crate::database::{Database, ParsedObject};
+use crate::refs::Ref;
 use crate::repository::Repository;
 use crate::revision::Revision;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+
+const DETACHED_HEAD_MESSAGE: &'static str =
+    "You are in 'detached HEAD' state. You can look around, make experimental 
+changes and commit them, and you can discard any commits you make in this
+ state without impacting any branches by performing another checkout.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using the branch command. Example:
+
+  rug branch <new-branch-name>
+";
 
 pub struct Checkout<'a, I, O, E>
 where
@@ -31,6 +45,64 @@ where
         Checkout { repo, ctx }
     }
 
+    fn read_ref(&self, r#ref: &Ref) -> Option<String> {
+        match r#ref {
+            Ref::Ref { oid } => Some(oid.to_string()),
+            Ref::SymRef { path } => self.repo.refs.read_ref(&path),
+        }
+    }
+
+    fn print_head_position(&mut self, message: &str, oid: &str) {
+        let commit = match self.repo.database.load(oid) {
+            ParsedObject::Commit(commit) => commit,
+            _ => panic!("oid not a commit"),
+        };
+        let oid = commit.get_oid();
+        let short = Database::short_oid(&oid);
+
+        writeln!(
+            self.ctx.stderr,
+            "{}",
+            format!("{} {} {}", message, short, commit.title_line())
+        );
+    }
+
+    fn print_previous_head(&mut self, current_ref: &Ref, current_oid: &str, target_oid: &str) {
+        if current_ref.is_head() && current_oid != target_oid {
+            self.print_head_position("Previous HEAD position was", current_oid);
+        }
+    }
+
+    fn print_detachment_notice(&mut self, current_ref: &Ref, target: &str, new_ref: &Ref) {
+        if new_ref.is_head() && !current_ref.is_head() {
+            writeln!(
+                self.ctx.stderr,
+                "{}
+
+{}
+",
+                format!("Note: checking out '{}'.", target),
+                DETACHED_HEAD_MESSAGE
+            );
+        }
+    }
+
+    fn print_new_head(&mut self, current_ref: &Ref, new_ref: &Ref, target: &str, target_oid: &str) {
+        if new_ref.is_head() {
+            self.print_head_position("HEAD is now at", target_oid);
+        } else if new_ref == current_ref {
+            writeln!(
+                self.ctx.stderr,
+                "{}",
+                format!("Already on {}", target));
+        } else {
+            writeln!(
+                self.ctx.stderr,
+                "{}",
+                format!("Switched to branch {}", target));
+        }
+    }
+
     pub fn run(&mut self) -> Result<(), String> {
         assert!(self.ctx.args.len() > 2, "no target provided");
         self.repo
@@ -38,8 +110,12 @@ where
             .load_for_update()
             .map_err(|e| e.to_string())?;
 
+        let current_ref = self.repo.refs.current_ref("HEAD");
+        let current_oid = self
+            .read_ref(&current_ref)
+            .expect(&format!("failed to read ref: {:?}", current_ref));
+
         let target = &self.ctx.args[2].clone();
-        let current_oid = self.repo.refs.read_head().expect("failed to read HEAD");
 
         let mut revision = Revision::new(&mut self.repo, target);
         let target_oid = match revision.resolve() {
@@ -68,6 +144,11 @@ where
             .refs
             .set_head(&target, &target_oid)
             .map_err(|e| e.to_string())?;
+
+        let new_ref = self.repo.refs.current_ref("HEAD");
+        self.print_previous_head(&current_ref, &current_oid, &target_oid);
+        self.print_detachment_notice(&current_ref, &target, &new_ref);
+        self.print_new_head(&current_ref, &new_ref, &target, &target_oid);
 
         Ok(())
     }

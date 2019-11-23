@@ -17,7 +17,7 @@ impl Author {
             "{} <{}> {}",
             self.name,
             self.email,
-            Utc::now().format("%s %z")
+            self.time.format("%s %z")
         )
     }
 

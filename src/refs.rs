@@ -21,9 +21,19 @@ lazy_static! {
     static ref SYMREF: Regex = Regex::new(r"^ref: (.+)$").unwrap();
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Ref {
     Ref { oid: String },
     SymRef { path: String },
+}
+
+impl Ref {
+    pub fn is_head(&self) -> bool {
+        match self {
+            Ref::Ref { oid: _ } => false,
+            Ref::SymRef { path } => path == "HEAD",
+        }
+    }
 }
 
 pub struct Refs {
@@ -99,8 +109,8 @@ impl Refs {
         None
     }
 
-    pub fn read_ref(&self, filename: &str) -> Option<String> {
-        if let Some(path) = self.path_for_name(filename) {
+    pub fn read_ref(&self, name: &str) -> Option<String> {
+        if let Some(path) = self.path_for_name(name) {
             self.read_symref(&path)
         } else {
             None
@@ -134,6 +144,17 @@ impl Refs {
             Some(Ref::SymRef { path }) => self.read_symref(&self.pathname.join(&path)),
             Some(Ref::Ref { oid }) => Some(oid),
             None => None,
+        }
+    }
+
+    pub fn current_ref(&self, source: &str) -> Ref {
+        let r#ref = Self::read_oid_or_symref(&self.pathname.join(source));
+
+        match r#ref {
+            Some(Ref::SymRef { path }) => self.current_ref(&path),
+            Some(Ref::Ref { oid: _ }) | None => Ref::SymRef {
+                path: source.to_string(),
+            },
         }
     }
 
