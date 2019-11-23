@@ -52,7 +52,7 @@ where
         }
     }
 
-    fn print_head_position(&mut self, message: &str, oid: &str) {
+    fn print_head_position(&mut self, message: &str, oid: &str) -> Result<(), String> {
         let commit = match self.repo.database.load(oid) {
             ParsedObject::Commit(commit) => commit,
             _ => panic!("oid not a commit"),
@@ -64,18 +64,19 @@ where
             self.ctx.stderr,
             "{}",
             format!("{} {} {}", message, short, commit.title_line())
-        );
+        ).map_err(|e| e.to_string())
     }
 
-    fn print_previous_head(&mut self, current_ref: &Ref, current_oid: &str, target_oid: &str) {
+    fn print_previous_head(&mut self, current_ref: &Ref, current_oid: &str, target_oid: &str) -> Result<(), String> {
         if current_ref.is_head() && current_oid != target_oid {
-            self.print_head_position("Previous HEAD position was", current_oid);
+            return self.print_head_position("Previous HEAD position was", current_oid);
         }
+        Ok(())
     }
 
-    fn print_detachment_notice(&mut self, current_ref: &Ref, target: &str, new_ref: &Ref) {
+    fn print_detachment_notice(&mut self, current_ref: &Ref, target: &str, new_ref: &Ref) -> Result<(), String> {
         if new_ref.is_head() && !current_ref.is_head() {
-            writeln!(
+            return writeln!(
                 self.ctx.stderr,
                 "{}
 
@@ -83,23 +84,24 @@ where
 ",
                 format!("Note: checking out '{}'.", target),
                 DETACHED_HEAD_MESSAGE
-            );
+            ).map_err(|e| e.to_string())
         }
+        Ok(())
     }
 
-    fn print_new_head(&mut self, current_ref: &Ref, new_ref: &Ref, target: &str, target_oid: &str) {
+    fn print_new_head(&mut self, current_ref: &Ref, new_ref: &Ref, target: &str, target_oid: &str) -> Result<(), String> {
         if new_ref.is_head() {
-            self.print_head_position("HEAD is now at", target_oid);
+            self.print_head_position("HEAD is now at", target_oid)
         } else if new_ref == current_ref {
             writeln!(
                 self.ctx.stderr,
                 "{}",
-                format!("Already on {}", target));
+                format!("Already on {}", target)).map_err(|e| e.to_string())
         } else {
             writeln!(
                 self.ctx.stderr,
                 "{}",
-                format!("Switched to branch {}", target));
+                format!("Switched to branch {}", target)).map_err(|e| e.to_string())
         }
     }
 
@@ -146,9 +148,9 @@ where
             .map_err(|e| e.to_string())?;
 
         let new_ref = self.repo.refs.current_ref("HEAD");
-        self.print_previous_head(&current_ref, &current_oid, &target_oid);
-        self.print_detachment_notice(&current_ref, &target, &new_ref);
-        self.print_new_head(&current_ref, &new_ref, &target, &target_oid);
+        self.print_previous_head(&current_ref, &current_oid, &target_oid)?;
+        self.print_detachment_notice(&current_ref, &target, &new_ref)?;
+        self.print_new_head(&current_ref, &new_ref, &target, &target_oid)?;
 
         Ok(())
     }

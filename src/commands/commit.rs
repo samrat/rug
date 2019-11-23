@@ -59,9 +59,6 @@ where
     repo.refs
         .update_head(&commit.get_oid())
         .expect("updating HEAD failed");
-    repo.refs
-        .update_master_ref(&commit.get_oid())
-        .expect("updating master ref failed");
 
     let commit_prefix = if parent.is_some() {
         ""

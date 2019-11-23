@@ -1,8 +1,8 @@
 use crate::lockfile::Lockfile;
 use crate::util;
 use regex::{Regex, RegexSet};
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs::File;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 lazy_static! {
@@ -62,13 +62,11 @@ impl Refs {
     pub fn update_ref_file(&self, path: &Path, oid: &str) -> Result<(), std::io::Error> {
         let mut lock = Lockfile::new(path);
         lock.hold_for_update()?;
-        lock.write(oid)?;
-        lock.write("\n")?;
-        lock.commit()
+        Self::write_lockfile(lock, &oid)
     }
 
     pub fn update_head(&self, oid: &str) -> Result<(), std::io::Error> {
-        self.update_ref_file(&self.head_path(), oid)
+        self.update_symref(&self.head_path(), oid)
     }
 
     pub fn set_head(&self, revision: &str, oid: &str) -> Result<(), std::io::Error> {
@@ -80,19 +78,6 @@ impl Refs {
         } else {
             self.update_ref_file(&self.head_path(), oid)
         }
-    }
-
-    // NOTE: Jumping a bit ahead of the book so that we can have a
-    // `master` branch
-    pub fn update_master_ref(&self, oid: &str) -> Result<(), std::io::Error> {
-        let master_ref_path = self.pathname.as_path().join("refs/heads/master");
-        fs::create_dir_all(master_ref_path.parent().unwrap())?;
-
-        let mut lock = Lockfile::new(&master_ref_path);
-        lock.hold_for_update()?;
-        lock.write(oid)?;
-        lock.write("\n")?;
-        lock.commit()
     }
 
     pub fn read_head(&self) -> Option<String> {
@@ -145,6 +130,24 @@ impl Refs {
             Some(Ref::Ref { oid }) => Some(oid),
             None => None,
         }
+    }
+
+    pub fn update_symref(&self, path: &Path, oid: &str) -> Result<(), std::io::Error> {
+        let mut lock = Lockfile::new(path);
+        lock.hold_for_update()?;
+
+        let r#ref = Self::read_oid_or_symref(path);
+        match r#ref {
+            Some(Ref::Ref { oid: _ }) => Self::write_lockfile(lock, &oid),
+            Some(Ref::SymRef { path }) => self.update_symref(&self.pathname.join(path), oid),
+            None => Err(io::Error::new(io::ErrorKind::Other, "no ref found")),
+        }
+    }
+
+    fn write_lockfile(mut lock: Lockfile, oid: &str) -> Result<(), io::Error> {
+        lock.write(&oid)?;
+        lock.write("\n")?;
+        lock.commit()
     }
 
     pub fn current_ref(&self, source: &str) -> Ref {
