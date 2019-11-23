@@ -49,7 +49,7 @@ where
         let root_path = working_dir.as_path();
         let repo = Repository::new(&root_path);
 
-        Status { repo, ctx: ctx }
+        Status { repo, ctx }
     }
 
     fn status_for(&self, path: &str) -> String {
@@ -102,7 +102,7 @@ where
             }
         }
 
-        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
+        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
     }
 
     fn print_workspace_changes(&mut self, message: &str, style: &str) -> Result<(), String> {
@@ -119,7 +119,7 @@ where
             }
         }
 
-        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
+        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
     }
 
     fn print_untracked_files(&mut self, message: &str, style: &str) -> Result<(), String> {
@@ -129,7 +129,7 @@ where
             writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style))
                 .map_err(|e| e.to_string())?;
         }
-        writeln!(self.ctx.stdout, "").map_err(|e| e.to_string())
+        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
     }
 
     pub fn print_results(&mut self) -> Result<(), String> {

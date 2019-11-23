@@ -34,9 +34,9 @@ pub struct HintedError {
 
 impl fmt::Display for HintedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n", self.message)?;
+        writeln!(f, "{}", self.message)?;
         for line in &self.hint {
-            write!(f, "hint: {}\n", line)?;
+            writeln!(f, "hint: {}", line)?;
         }
 
         Ok(())
@@ -94,7 +94,7 @@ impl<'a> Revision<'a> {
     pub fn resolve(&mut self) -> Result<String, Vec<HintedError>> {
         match self.resolve_query(self.query.clone()) {
             Some(revision) => {
-                if let Some(_) = self.load_commit(&revision) {
+                if self.load_commit(&revision).is_some() {
                     Ok(revision)
                 } else {
                     Err(self.errors.clone())

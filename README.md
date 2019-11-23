@@ -2,8 +2,8 @@
 
 [![CircleCI](https://circleci.com/gh/samrat/rug.svg?style=svg)](https://circleci.com/gh/samrat/rug)
 
-This is my implementation of *Jit*, from James Coglan's book *Building
-Git*.
+This is my implementation of *Jit*, from James Coglan's book
+[*Building Git*](https://shop.jcoglan.com/building-git/).
 
 
 ### Usage

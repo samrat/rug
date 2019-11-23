@@ -116,14 +116,10 @@ impl Hunk {
         let empty_line = Line::new(0, "");
 
         loop {
-            loop {
-                // Skip over Eql edits
-                if let Some(edit) = get_edit(&edits, offset) {
-                    if edit.edit_type == EditType::Eql {
-                        offset += 1;
-                    } else {
-                        break;
-                    }
+            // Skip over Eql edits
+            while let Some(edit) = get_edit(&edits, offset) {
+                if edit.edit_type == EditType::Eql {
+                    offset += 1;
                 } else {
                     break;
                 }

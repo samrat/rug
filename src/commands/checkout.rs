@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-const DETACHED_HEAD_MESSAGE: &'static str =
+const DETACHED_HEAD_MESSAGE: &str =
     "You are in 'detached HEAD' state. You can look around, make experimental 
 changes and commit them, and you can discard any commits you make in this
  state without impacting any branches by performing another checkout.
@@ -115,7 +115,7 @@ where
         let current_ref = self.repo.refs.current_ref("HEAD");
         let current_oid = self
             .read_ref(&current_ref)
-            .expect(&format!("failed to read ref: {:?}", current_ref));
+            .unwrap_or_else(|| panic!("failed to read ref: {:?}", current_ref));
 
         let target = &self.ctx.args[2].clone();
 

@@ -115,7 +115,7 @@ impl Object for Tree {
 
         let mut vs = v;
 
-        while vs.len() > 0 {
+        while !vs.is_empty() {
             let (mode, rest): (u32, &[u8]) = match vs
                 .splitn(2, |c| *c as char == ' ')
                 .collect::<Vec<&[u8]>>()
@@ -130,12 +130,12 @@ impl Object for Tree {
             };
             vs = rest;
 
-            let (name, rest) = match vs
+            let (name, rest) = match *vs
                 .splitn(2, |c| *c as char == '\u{0}')
                 .collect::<Vec<&[u8]>>()
                 .as_slice()
             {
-                &[name_bytes, rest] => (str::from_utf8(name_bytes).expect("invalid utf8"), rest),
+                [name_bytes, rest] => (str::from_utf8(name_bytes).expect("invalid utf8"), rest),
                 _ => panic!("EOF while parsing name"),
             };
             vs = rest;

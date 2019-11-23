@@ -31,10 +31,10 @@ pub enum ParsedObject {
 
 impl ParsedObject {
     pub fn obj_type(&self) -> &str {
-        match self {
-            &ParsedObject::Commit(_) => "commit",
-            &ParsedObject::Blob(_) => "blob",
-            &ParsedObject::Tree(_) => "tree",
+        match *self {
+            ParsedObject::Commit(_) => "commit",
+            ParsedObject::Blob(_) => "blob",
+            ParsedObject::Tree(_) => "tree",
         }
     }
 
@@ -132,12 +132,12 @@ impl Database {
         };
         vs = rest;
 
-        let (_size, rest) = match vs
+        let (_size, rest) = match *vs
             .splitn(2, |c| *c as char == '\u{0}')
             .collect::<Vec<&[u8]>>()
             .as_slice()
         {
-            &[size_bytes, rest] => (
+            [size_bytes, rest] => (
                 str::from_utf8(size_bytes).expect("failed to parse size"),
                 rest,
             ),
@@ -145,9 +145,9 @@ impl Database {
         };
 
         match obj_type {
-            "commit" => return Some(Commit::parse(&rest)),
-            "blob" => return Some(Blob::parse(&rest)),
-            "tree" => return Some(Tree::parse(&rest)),
+            "commit" => Some(Commit::parse(&rest)),
+            "blob" => Some(Blob::parse(&rest)),
+            "tree" => Some(Tree::parse(&rest)),
             _ => unimplemented!(),
         }
     }

@@ -109,7 +109,7 @@ mod tests {
     fn add_regular_file_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
@@ -122,7 +122,7 @@ mod tests {
     fn add_executable_file_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper.make_executable("hello.txt").unwrap();
 
@@ -137,10 +137,10 @@ mod tests {
     fn add_multiple_files_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper
-            .write_file("world.txt", "world".as_bytes())
+            .write_file("world.txt", b"world")
             .unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
@@ -160,10 +160,10 @@ mod tests {
     fn incrementally_add_files_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper
-            .write_file("world.txt", "world".as_bytes())
+            .write_file("world.txt", b"world")
             .unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
@@ -186,7 +186,7 @@ mod tests {
     fn add_a_directory_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("a-dir/nested.txt", "hello".as_bytes())
+            .write_file("a-dir/nested.txt", b"hello")
             .unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
 
@@ -200,7 +200,7 @@ mod tests {
     fn add_repository_root_to_index() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("a/b/c/hello.txt", "hello".as_bytes())
+            .write_file("a/b/c/hello.txt", b"hello")
             .unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
@@ -223,7 +223,7 @@ mod tests {
     fn add_fails_for_unreadable_files() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper.make_unreadable("hello.txt").unwrap();
 
@@ -235,10 +235,10 @@ mod tests {
     fn add_fails_if_index_is_locked() {
         let mut cmd_helper = CommandHelper::new();
         cmd_helper
-            .write_file("hello.txt", "hello".as_bytes())
+            .write_file("hello.txt", b"hello")
             .unwrap();
         cmd_helper
-            .write_file(".git/index.lock", "hello".as_bytes())
+            .write_file(".git/index.lock", b"hello")
             .unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();

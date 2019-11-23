@@ -109,7 +109,7 @@ impl<'a> TreeDiff<'a> {
         };
 
         match self.database.load(&tree_oid) {
-            ParsedObject::Tree(tree) => return tree.clone(),
+            ParsedObject::Tree(tree) => tree.clone(),
             _ => panic!("oid not a tree"),
         }
     }

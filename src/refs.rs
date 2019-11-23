@@ -138,7 +138,7 @@ impl Refs {
 
         let r#ref = Self::read_oid_or_symref(path);
         match r#ref {
-            None | Some(Ref::Ref { oid: _ }) => Self::write_lockfile(lock, &oid),
+            None | Some(Ref::Ref { .. }) => Self::write_lockfile(lock, &oid),
             Some(Ref::SymRef { path }) => self.update_symref(&self.pathname.join(path), oid),
         }
     }
@@ -154,7 +154,7 @@ impl Refs {
 
         match r#ref {
             Some(Ref::SymRef { path }) => self.current_ref(&path),
-            Some(Ref::Ref { oid: _ }) | None => Ref::SymRef {
+            Some(Ref::Ref { .. }) | None => Ref::SymRef {
                 path: source.to_string(),
             },
         }
