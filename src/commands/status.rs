@@ -68,7 +68,8 @@ where
 
     fn print_porcelain_format(&mut self) -> Result<(), String> {
         for file in &self.repo.changed {
-            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file).map_err(|e| e.to_string())?;
+            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file)
+                .map_err(|e| e.to_string())?;
         }
 
         for file in &self.repo.untracked {
@@ -133,8 +134,13 @@ where
     }
 
     pub fn print_results(&mut self) -> Result<(), String> {
-        // TODO: strip off until actual args?
-        if self.ctx.args.len() > 2 && self.ctx.args[2] == "--porcelain" {
+        if self
+            .ctx
+            .options
+            .as_ref()
+            .map(|o| o.is_present("porcelain"))
+            .unwrap_or(false)
+        {
             self.print_porcelain_format()?;
         } else {
             self.print_long_format()?;

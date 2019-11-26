@@ -50,7 +50,12 @@ where
 
         Pager::setup_pager();
 
-        if self.ctx.args.len() > 2 && self.ctx.args[2] == "--cached" {
+        if self
+            .ctx
+            .options
+            .as_ref()
+            .map(|o| o.is_present("cached"))
+            .unwrap_or(false) {
             self.diff_head_index()
         } else {
             self.diff_index_workspace()

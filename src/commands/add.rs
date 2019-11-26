@@ -5,7 +5,6 @@ use crate::database::blob::Blob;
 
 use crate::database::object::Object;
 
-
 use crate::repository::Repository;
 
 static INDEX_LOAD_OR_CREATE_FAILED: &'static str = "fatal: could not create/load .git/index\n";
@@ -61,6 +60,12 @@ where
     let working_dir = ctx.dir;
     let root_path = working_dir.as_path();
     let mut repo = Repository::new(&root_path);
+    let options = ctx.options.as_ref().unwrap();
+    let args: Vec<_> = if let Some(args) = options.values_of("args") {
+        args.collect()
+    } else {
+        vec![]
+    };
 
     match repo.index.load_for_update() {
         Ok(_) => (),
@@ -73,7 +78,7 @@ where
     }
 
     let mut paths = vec![];
-    for arg in &ctx.args[2..] {
+    for arg in args {
         let path = match working_dir.join(arg).canonicalize() {
             Ok(canon_path) => canon_path,
             Err(_) => {
@@ -108,9 +113,7 @@ mod tests {
     #[test]
     fn add_regular_file_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
         cmd_helper
@@ -121,9 +124,7 @@ mod tests {
     #[test]
     fn add_executable_file_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
         cmd_helper.make_executable("hello.txt").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
@@ -136,12 +137,8 @@ mod tests {
     #[test]
     fn add_multiple_files_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
-        cmd_helper
-            .write_file("world.txt", b"world")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
+        cmd_helper.write_file("world.txt", b"world").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper
@@ -159,12 +156,8 @@ mod tests {
     #[test]
     fn incrementally_add_files_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
-        cmd_helper
-            .write_file("world.txt", b"world")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
+        cmd_helper.write_file("world.txt", b"world").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "hello.txt"]).unwrap();
@@ -185,9 +178,7 @@ mod tests {
     #[test]
     fn add_a_directory_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("a-dir/nested.txt", b"hello")
-            .unwrap();
+        cmd_helper.write_file("a-dir/nested.txt", b"hello").unwrap();
         cmd_helper.jit_cmd(&["init"]).unwrap();
 
         cmd_helper.jit_cmd(&["add", "a-dir"]).unwrap();
@@ -199,9 +190,7 @@ mod tests {
     #[test]
     fn add_repository_root_to_index() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("a/b/c/hello.txt", b"hello")
-            .unwrap();
+        cmd_helper.write_file("a/b/c/hello.txt", b"hello").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
         cmd_helper.jit_cmd(&["add", "."]).unwrap();
@@ -222,9 +211,7 @@ mod tests {
     #[test]
     fn add_fails_for_unreadable_files() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
         cmd_helper.make_unreadable("hello.txt").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
@@ -234,12 +221,8 @@ mod tests {
     #[test]
     fn add_fails_if_index_is_locked() {
         let mut cmd_helper = CommandHelper::new();
-        cmd_helper
-            .write_file("hello.txt", b"hello")
-            .unwrap();
-        cmd_helper
-            .write_file(".git/index.lock", b"hello")
-            .unwrap();
+        cmd_helper.write_file("hello.txt", b"hello").unwrap();
+        cmd_helper.write_file(".git/index.lock", b"hello").unwrap();
 
         cmd_helper.jit_cmd(&["init"]).unwrap();
         assert!(cmd_helper.jit_cmd(&["add", "hello.txt"]).is_err());

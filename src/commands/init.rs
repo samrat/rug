@@ -1,7 +1,7 @@
+use crate::refs::Refs;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::Path;
-use crate::refs::Refs;
 
 use crate::commands::CommandContext;
 
@@ -14,8 +14,14 @@ where
     E: Write,
 {
     let working_dir = ctx.dir;
-    let root_path = if ctx.args.len() > 2 {
-        Path::new(&ctx.args[2])
+    let options = ctx.options.as_ref().unwrap();
+    let args: Vec<_> = if let Some(args) = options.values_of("args") {
+        args.collect()
+    } else {
+        vec![]
+    };
+    let root_path = if !args.is_empty() {
+        Path::new(args[0])
     } else {
         working_dir.as_path()
     };
@@ -27,11 +33,16 @@ where
 
     let refs = Refs::new(&git_path);
     let path = Path::new("refs/heads").join(DEFAULT_BRANCH);
-    refs.update_head(&format!("ref: {}", path.to_str().expect("failed to convert path to str"))).map_err(|e| e.to_string())?;
+    refs.update_head(&format!(
+        "ref: {}",
+        path.to_str().expect("failed to convert path to str")
+    ))
+    .map_err(|e| e.to_string())?;
 
     writeln!(
         ctx.stdout,
         "Initialized empty Jit repository in {:?}\n",
         git_path
-    ).map_err(|e| e.to_string())
+    )
+    .map_err(|e| e.to_string())
 }

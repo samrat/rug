@@ -106,7 +106,14 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        assert!(self.ctx.args.len() > 2, "no target provided");
+        let options = self.ctx.options.as_ref().unwrap().clone();
+        let args: Vec<_> = if let Some(args) = options.values_of("args") {
+            args.collect()
+        } else {
+            vec![]
+        };
+        let target = args.get(0).expect("no target provided");
+
         self.repo
             .index
             .load_for_update()
@@ -116,8 +123,6 @@ where
         let current_oid = self
             .read_ref(&current_ref)
             .unwrap_or_else(|| panic!("failed to read ref: {:?}", current_ref));
-
-        let target = &self.ctx.args[2].clone();
 
         let mut revision = Revision::new(&mut self.repo, target);
         let target_oid = match revision.resolve() {

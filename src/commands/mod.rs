@@ -1,3 +1,4 @@
+use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -26,43 +27,97 @@ where
 {
     pub dir: PathBuf,
     pub env: &'a HashMap<String, String>,
+    pub options: Option<ArgMatches<'a>>,
     pub args: Vec<String>,
     pub stdin: I,
     pub stdout: O,
     pub stderr: E,
 }
 
-pub fn execute<I, O, E>(ctx: CommandContext<I, O, E>) -> Result<(), String>
+pub fn get_app() -> App<'static, 'static> {
+    App::new("rug")
+        .subcommand(
+            SubCommand::with_name("init")
+                .about("Create an empty Git repository or reinitialize an existing one")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("status")
+                .about("Show the working tree status")
+                .arg(Arg::with_name("porcelain").long("porcelain"))
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("commit")
+                .about("Record changes to the repository")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("add")
+                .about("Add file contents to the index")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("diff")
+                .about("Show changes between commits, commit and working tree, etc")
+                .arg(Arg::with_name("cached").long("cached"))
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("branch")
+                .about("List, create, or delete branches")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("checkout")
+                .about("Switch branches or restore working tree files")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
+}
+
+pub fn execute<'a, I, O, E>(
+    matches: ArgMatches<'a>,
+    mut ctx: CommandContext<'a, I, O, E>,
+) -> Result<(), String>
 where
     I: Read,
     O: Write,
     E: Write,
 {
-    if ctx.args.len() < 2 {
-        return Err("No command provided\n".to_string());
-    }
-    let command = &ctx.args[1];
-    match &command[..] {
-        "init" => init_command(ctx),
-        "commit" => commit_command(ctx),
-        "add" => add_command(ctx),
-        "status" => {
+    match matches.subcommand() {
+        ("init", sub_matches) => {
+            ctx.options = sub_matches.cloned();
+            init_command(ctx)
+        }
+        ("commit", sub_matches) => {
+            ctx.options = sub_matches.cloned();
+            commit_command(ctx)
+        }
+        ("add", sub_matches) => {
+            ctx.options = sub_matches.cloned();
+            add_command(ctx)
+        }
+        ("status", sub_matches) => {
+            ctx.options = sub_matches.cloned();
             let mut cmd = Status::new(ctx);
             cmd.run()
         }
-        "diff" => {
+        ("diff", sub_matches) => {
+            ctx.options = sub_matches.cloned();
             let mut cmd = Diff::new(ctx);
             cmd.run()
         }
-        "branch" => {
+        ("branch", sub_matches) => {
+            ctx.options = sub_matches.cloned();
             let mut cmd = Branch::new(ctx);
             cmd.run()
         }
-        "checkout" => {
+        ("checkout", sub_matches) => {
+            ctx.options = sub_matches.cloned();
             let mut cmd = Checkout::new(ctx);
             cmd.run()
         }
-        _ => Err(format!("invalid command: {}\n", command)),
+        _ => Ok(()),
     }
 }
 
@@ -125,16 +180,18 @@ mod tests {
             let mut args = args.iter().map(|a| a.to_string()).collect::<Vec<String>>();
             // Command handler assumes first arg is executable name
             args.insert(0, "".to_string());
+            let matches = get_app().get_matches_from(args.clone());
             let ctx = CommandContext {
                 dir: Path::new(&self.repo_path).to_path_buf(),
                 env: &self.env,
-                args,
+                args: args,
+                options: None,
                 stdin: self.stdin.as_bytes(),
                 stdout: &mut self.stdout,
                 stderr: &mut self.stderr,
             };
 
-            match execute(ctx) {
+            match execute(matches, ctx) {
                 Ok(_) => Ok((
                     str::from_utf8(&self.stdout.clone().into_inner())
                         .expect("invalid stdout")

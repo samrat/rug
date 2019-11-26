@@ -1,6 +1,6 @@
 use crate::commands::CommandContext;
 use crate::repository::Repository;
-use crate::revision::{Revision};
+use crate::revision::Revision;
 
 use std::io::{Read, Write};
 
@@ -29,18 +29,29 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        self.create_branch()?;
+        let options = self.ctx.options.as_ref().unwrap().clone();
+        let args: Vec<_> = if let Some(args) = options.values_of("args") {
+            args.collect()
+        } else {
+            vec![]
+        };
+
+        let branch_name = args.get(0).expect("no branch name provided");
+        let start_point = args.get(1);
+        self.create_branch(branch_name, start_point)?;
 
         Ok(())
     }
 
-    fn create_branch(&mut self) -> Result<(), String> {
-        assert!(self.ctx.args.len() > 2, "no branch name provided");
-        let branch_name = &self.ctx.args[2];
-        let start_point = if self.ctx.args.len() < 3 {
+    fn create_branch(
+        &mut self,
+        branch_name: &str,
+        start_point: Option<&&str>,
+    ) -> Result<(), String> {
+        let start_point = if start_point.is_none() {
             self.repo.refs.read_head().expect("empty HEAD")
         } else {
-            match Revision::new(&mut self.repo, &self.ctx.args[3]).resolve() {
+            match Revision::new(&mut self.repo, start_point.unwrap()).resolve() {
                 Ok(rev) => rev,
                 Err(errors) => {
                     let mut v = vec![];
