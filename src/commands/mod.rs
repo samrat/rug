@@ -28,7 +28,6 @@ where
     pub dir: PathBuf,
     pub env: &'a HashMap<String, String>,
     pub options: Option<ArgMatches<'a>>,
-    pub args: Vec<String>,
     pub stdin: I,
     pub stdout: O,
     pub stderr: E,
@@ -179,12 +178,11 @@ mod tests {
         pub fn jit_cmd(&mut self, args: &[&str]) -> Result<(String, String), String> {
             let mut args = args.iter().map(|a| a.to_string()).collect::<Vec<String>>();
             // Command handler assumes first arg is executable name
-            args.insert(0, "".to_string());
-            let matches = get_app().get_matches_from(args.clone());
+            args.insert(0, "rug".to_string());
+            let matches = get_app().get_matches_from(args);
             let ctx = CommandContext {
                 dir: Path::new(&self.repo_path).to_path_buf(),
                 env: &self.env,
-                args: args,
                 options: None,
                 stdin: self.stdin.as_bytes(),
                 stdout: &mut self.stdout,
