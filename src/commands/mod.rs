@@ -65,6 +65,7 @@ pub fn get_app() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("branch")
                 .about("List, create, or delete branches")
+                .arg(Arg::with_name("verbose").short("v").long("verbose"))
                 .arg(Arg::with_name("args").multiple(true)),
         )
         .subcommand(

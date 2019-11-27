@@ -45,13 +45,6 @@ where
         Checkout { repo, ctx }
     }
 
-    fn read_ref(&self, r#ref: &Ref) -> Option<String> {
-        match r#ref {
-            Ref::Ref { oid } => Some(oid.to_string()),
-            Ref::SymRef { path } => self.repo.refs.read_ref(&path),
-        }
-    }
-
     fn print_head_position(&mut self, message: &str, oid: &str) -> Result<(), String> {
         let commit = match self.repo.database.load(oid) {
             ParsedObject::Commit(commit) => commit,
@@ -121,7 +114,9 @@ where
 
         let current_ref = self.repo.refs.current_ref("HEAD");
         let current_oid = self
-            .read_ref(&current_ref)
+            .repo
+            .refs
+            .read_oid(&current_ref)
             .unwrap_or_else(|| panic!("failed to read ref: {:?}", current_ref));
 
         let mut revision = Revision::new(&mut self.repo, target);

@@ -1,9 +1,10 @@
 use crate::lockfile::Lockfile;
 use crate::util;
 use regex::{Regex, RegexSet};
-use std::fs::File;
+use std::fs::{self, DirEntry, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::cmp::{Ord, Ordering};
 
 lazy_static! {
     static ref INVALID_FILENAME: RegexSet = {
@@ -21,7 +22,7 @@ lazy_static! {
     static ref SYMREF: Regex = Regex::new(r"^ref: (.+)$").unwrap();
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd)]
 pub enum Ref {
     Ref { oid: String },
     SymRef { path: String },
@@ -32,6 +33,17 @@ impl Ref {
         match self {
             Ref::Ref { oid: _ } => false,
             Ref::SymRef { path } => path == "HEAD",
+        }
+    }
+}
+
+impl Ord for Ref {
+    fn cmp(&self, other: &Ref) -> Ordering {
+        match (self, other) {
+            (Ref::Ref { .. }, Ref::SymRef { ..} ) => Ordering::Less,
+            (Ref::SymRef { .. }, Ref::Ref { ..} ) => Ordering::Greater,
+            (Ref::SymRef { path: a }, Ref::SymRef { path: b } ) => a.cmp(b),
+            (Ref::Ref { oid: a }, Ref::Ref { oid: b } ) => a.cmp(b),
         }
     }
 }
@@ -99,6 +111,14 @@ impl Refs {
             self.read_symref(&path)
         } else {
             None
+        }
+    }
+
+    /// Folows chain of references to resolve to an object ID
+    pub fn read_oid(&self, r#ref: &Ref) -> Option<String> {
+        match r#ref {
+            Ref::Ref { oid } => Some(oid.to_string()),
+            Ref::SymRef { path } => self.read_ref(&path),
         }
     }
 
@@ -174,5 +194,47 @@ impl Refs {
         File::create(&path).expect("failed to create refs file for branch");
         self.update_ref_file(&path, start_oid)
             .map_err(|e| e.to_string())
+    }
+
+    pub fn list_branches(&self) -> Vec<Ref> {
+        self.list_refs(&self.heads_path())
+    }
+
+    fn name_to_symref(&self, name: DirEntry) -> Vec<Ref> {
+        let path = name.path();
+        if path.is_dir() {
+            self.list_refs(&path)
+        } else {
+            let path = util::relative_path_from(&path, &self.pathname);
+            vec![Ref::SymRef { path }]
+        }
+    }
+
+    fn list_refs(&self, dirname: &Path) -> Vec<Ref> {
+        let refs = fs::read_dir(self.pathname.join(dirname))
+            .expect("failed to read dir")
+            .flat_map(|name| self.name_to_symref(name.unwrap()))
+            .collect();
+        refs
+    }
+
+    pub fn ref_short_name(&self, r#ref: &Ref) -> String {
+        match r#ref {
+            Ref::Ref { oid: _ } => unimplemented!(),
+            Ref::SymRef { path } => {
+                let path = self.pathname.join(path);
+
+                let dirs = [self.heads_path(), self.pathname.clone()];
+                let prefix = dirs.iter().find(|dir| {
+                    path.parent()
+                        .expect("failed to get parent")
+                        .ancestors()
+                        .any(|parent| &parent == dir)
+                });
+
+                let prefix = prefix.expect("could not find prefix");
+                util::relative_path_from(&path, prefix)
+            }
+        }
     }
 }

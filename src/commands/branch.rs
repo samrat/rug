@@ -1,7 +1,11 @@
 use crate::commands::CommandContext;
+use crate::database::object::Object;
+use crate::database::{Database, ParsedObject};
+use crate::pager::Pager;
+use crate::refs::Ref;
 use crate::repository::Repository;
 use crate::revision::Revision;
-
+use colored::*;
 use std::io::{Read, Write};
 
 pub struct Branch<'a, I, O, E>
@@ -36,11 +40,77 @@ where
             vec![]
         };
 
-        let branch_name = args.get(0).expect("no branch name provided");
-        let start_point = args.get(1);
-        self.create_branch(branch_name, start_point)?;
+        if args.is_empty() {
+            self.list_branches()?;
+        } else {
+            let branch_name = args.get(0).expect("no branch name provided");
+            let start_point = args.get(1);
+            self.create_branch(branch_name, start_point)?;
+        }
+        Ok(())
+    }
+
+    fn list_branches(&mut self) -> Result<(), String> {
+        let current = self.repo.refs.current_ref("HEAD");
+        let mut branches = self.repo.refs.list_branches();
+        branches.sort();
+
+        let max_width = branches
+            .iter()
+            .map(|b| self.repo.refs.ref_short_name(b).len())
+            .max()
+            .unwrap_or(0);
+
+        Pager::setup_pager();
+
+        for r#ref in branches {
+            let info = self.format_ref(&r#ref, &current);
+            let extended_info = self.extended_branch_info(&r#ref, max_width);
+            writeln!(self.ctx.stdout, "{}{}", info, extended_info).map_err(|e| e.to_string())?;
+        }
 
         Ok(())
+    }
+
+    fn format_ref(&self, r#ref: &Ref, current: &Ref) -> String {
+        if r#ref == current {
+            format!("* {}", self.repo.refs.ref_short_name(r#ref).green())
+        } else {
+            format!("  {}", self.repo.refs.ref_short_name(r#ref))
+        }
+    }
+
+    fn extended_branch_info(&mut self, r#ref: &Ref, max_width: usize) -> String {
+        if self
+            .ctx
+            .options
+            .as_ref()
+            .map(|o| o.is_present("verbose"))
+            .unwrap_or(false)
+        {
+            let oid = self
+                .repo
+                .refs
+                .read_oid(r#ref)
+                .expect("unable to resolve branch to oid");
+            let commit = if let ParsedObject::Commit(commit) = self.repo.database.load(&oid) {
+                commit
+            } else {
+                panic!("branch ref was not pointing to commit");
+            };
+            let oid = commit.get_oid();
+            let short = Database::short_oid(&oid);
+            let ref_short_name = self.repo.refs.ref_short_name(r#ref);
+            format!(
+                "{:width$}{} {}",
+                " ",
+                short,
+                commit.title_line(),
+                width = (max_width - ref_short_name.len() + 1)
+            )
+        } else {
+            "".to_string()
+        }
     }
 
     fn create_branch(
