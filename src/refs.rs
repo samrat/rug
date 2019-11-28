@@ -237,4 +237,20 @@ impl Refs {
             }
         }
     }
+
+    pub fn delete_branch(&self, branch_name: &str) -> Result<String, String> {
+        let path = self.heads_path().join(branch_name);
+
+        let mut lockfile = Lockfile::new(&path);
+        lockfile.hold_for_update().map_err(|e| e.to_string())?;
+
+        if let Some(oid) = self.read_symref(&path) {
+            fs::remove_file(path).map_err(|e| e.to_string())?;
+            // To remove the .lock file
+            lockfile.rollback().map_err(|e| e.to_string())?;
+            Ok(oid)
+        } else {
+            return Err(format!("branch {} not found", branch_name));
+        }
+    }
 }

@@ -40,7 +40,9 @@ where
             vec![]
         };
 
-        if args.is_empty() {
+        if options.is_present("delete") || options.is_present("force_delete") {
+            self.delete_branches(args)?;
+        } else if args.is_empty() {
             self.list_branches()?;
         } else {
             let branch_name = args.get(0).expect("no branch name provided");
@@ -142,5 +144,34 @@ where
         self.repo.refs.create_branch(branch_name, &start_point)?;
 
         Ok(())
+    }
+
+    fn delete_branches(&mut self, branch_names: Vec<&str>) -> Result<(), String> {
+        for branch in branch_names {
+            self.delete_branch(branch)?;
+        }
+        Ok(())
+    }
+
+    fn delete_branch(&mut self, branch_name: &str) -> Result<(), String> {
+        let force = self
+            .ctx
+            .options
+            .as_ref()
+            .map(|o| o.is_present("force") || o.is_present("force_delete"))
+            .unwrap_or(false);
+        if !force {
+            return Ok(());
+        }
+
+        let oid = self.repo.refs.delete_branch(branch_name)?;
+        let short = Database::short_oid(&oid);
+
+        writeln!(
+            self.ctx.stdout,
+            "Deleted branch {} (was {})",
+            branch_name, short
+        )
+        .map_err(|e| e.to_string())
     }
 }
