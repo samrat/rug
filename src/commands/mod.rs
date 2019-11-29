@@ -17,6 +17,8 @@ mod branch;
 use branch::Branch;
 mod checkout;
 use checkout::Checkout;
+mod log;
+use log::Log;
 
 #[derive(Debug)]
 pub struct CommandContext<'a, I, O, E>
@@ -76,6 +78,11 @@ pub fn get_app() -> App<'static, 'static> {
                 .about("Switch branches or restore working tree files")
                 .arg(Arg::with_name("args").multiple(true)),
         )
+        .subcommand(
+            SubCommand::with_name("log")
+                .about("Show commit logs")
+                .arg(Arg::with_name("args").multiple(true)),
+        )
 }
 
 pub fn execute<'a, I, O, E>(
@@ -118,6 +125,11 @@ where
         ("checkout", sub_matches) => {
             ctx.options = sub_matches.cloned();
             let mut cmd = Checkout::new(ctx);
+            cmd.run()
+        }
+        ("log", sub_matches) => {
+            ctx.options = sub_matches.cloned();
+            let mut cmd = Log::new(ctx);
             cmd.run()
         }
         _ => Ok(()),

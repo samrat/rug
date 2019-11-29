@@ -25,6 +25,10 @@ impl Author {
         self.time.format("%Y-%m-%d").to_string()
     }
 
+    pub fn readable_time(&self) -> String {
+        self.time.format("%a %b %-d  %H:%M:%S %Y %Z").to_string()
+    }
+
     pub fn parse(s: &str) -> Author {
         let split_author_str = s
             .split(&['<', '>'][..])
