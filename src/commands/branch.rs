@@ -68,7 +68,7 @@ where
         for r#ref in branches {
             let info = self.format_ref(&r#ref, &current);
             let extended_info = self.extended_branch_info(&r#ref, max_width);
-            writeln!(self.ctx.stdout, "{}{}", info, extended_info).map_err(|e| e.to_string())?;
+            println!("{}{}", info, extended_info);
         }
 
         Ok(())
@@ -167,11 +167,10 @@ where
         let oid = self.repo.refs.delete_branch(branch_name)?;
         let short = Database::short_oid(&oid);
 
-        writeln!(
-            self.ctx.stdout,
+        println!(
             "Deleted branch {} (was {})",
             branch_name, short
-        )
-        .map_err(|e| e.to_string())
+        );
+        Ok(())
     }
 }

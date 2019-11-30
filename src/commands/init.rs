@@ -7,7 +7,7 @@ use crate::commands::CommandContext;
 
 const DEFAULT_BRANCH: &'static str = "master";
 
-pub fn init_command<I, O, E>(mut ctx: CommandContext<I, O, E>) -> Result<(), String>
+pub fn init_command<I, O, E>(ctx: CommandContext<I, O, E>) -> Result<(), String>
 where
     I: Read,
     O: Write,
@@ -39,10 +39,6 @@ where
     ))
     .map_err(|e| e.to_string())?;
 
-    writeln!(
-        ctx.stdout,
-        "Initialized empty Jit repository in {:?}\n",
-        git_path
-    )
-    .map_err(|e| e.to_string())
+    println!("Initialized empty Jit repository in {:?}\n", git_path);
+    Ok(())
 }

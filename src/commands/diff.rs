@@ -55,7 +55,8 @@ where
             .options
             .as_ref()
             .map(|o| o.is_present("cached"))
-            .unwrap_or(false) {
+            .unwrap_or(false)
+        {
             self.diff_head_index()
         } else {
             self.diff_index_workspace()
@@ -113,12 +114,7 @@ where
         a.path = format!("a/{}", a.path);
         b.path = format!("b/{}", b.path);
 
-        writeln!(
-            self.ctx.stdout,
-            "{}",
-            format!("diff --git {} {}", a.path, b.path).bold()
-        )
-        .map_err(|e| e.to_string())?;
+        println!("{}", format!("diff --git {} {}", a.path, b.path).bold());
 
         self.print_diff_mode(&a, &b)?;
         self.print_diff_content(&a, &b)
@@ -126,33 +122,25 @@ where
 
     fn print_diff_mode(&mut self, a: &Target, b: &Target) -> Result<(), String> {
         if a.mode == None {
-            writeln!(
-                self.ctx.stdout,
+            println!(
                 "{}",
                 format!("new file mode {:o}", b.mode.expect("missing mode")).bold()
-            )
-            .map_err(|e| e.to_string())?;
+            );
         } else if b.mode == None {
-            writeln!(
-                self.ctx.stdout,
+            println!(
                 "{}",
                 format!("deleted file mode {:o}", a.mode.expect("missing mode")).bold()
-            )
-            .map_err(|e| e.to_string())?;
+            );
         } else if a.mode != b.mode {
-            writeln!(
-                self.ctx.stdout,
+            println!(
                 "{}",
                 format!("old mode {:o}", a.mode.expect("missing mode")).bold()
-            )
-            .map_err(|e| e.to_string())?;
+            );
 
-            writeln!(
-                self.ctx.stdout,
+            println!(
                 "{}",
                 format!("new mode {:o}", b.mode.expect("missing mode")).bold()
-            )
-            .map_err(|e| e.to_string())?;
+            );
         }
 
         Ok(())
@@ -163,8 +151,7 @@ where
             return Ok(());
         }
 
-        writeln!(
-            self.ctx.stdout,
+        println!(
             "{}",
             format!(
                 "index {}..{}{}",
@@ -177,12 +164,9 @@ where
                 }
             )
             .bold()
-        )
-        .map_err(|e| e.to_string())?;
-        writeln!(self.ctx.stdout, "{}", format!("--- {}", a.path).bold())
-            .map_err(|e| e.to_string())?;
-        writeln!(self.ctx.stdout, "{}", format!("+++ {}", b.path).bold())
-            .map_err(|e| e.to_string())?;
+        );
+        println!("{}", format!("--- {}", a.path).bold());
+        println!("{}", format!("+++ {}", b.path).bold());
 
         let hunks = diff::Diff::diff_hunks(&a.data, &b.data);
         for h in hunks {
@@ -198,13 +182,13 @@ where
             EditType::Del => format!("{}", edit).red(),
             EditType::Eql => format!("{}", edit).normal(),
         };
-        writeln!(self.ctx.stdout, "{}", edit_string).map_err(|e| e.to_string())?;
+        println!("{}", edit_string);
 
         Ok(())
     }
 
     fn print_diff_hunk(&mut self, hunk: diff::Hunk) -> Result<(), String> {
-        writeln!(self.ctx.stdout, "{}", hunk.header().cyan()).map_err(|e| e.to_string())?;
+        println!("{}", hunk.header().cyan());
 
         for edit in hunk.edits {
             self.print_diff_edit(edit).map_err(|e| e.to_string())?;

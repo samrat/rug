@@ -148,6 +148,7 @@ mod tests {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
+    use std::process::{Command, Stdio};
     use std::str;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -168,17 +169,17 @@ mod tests {
         repo_path: PathBuf,
         stdin: String,
         stdout: Cursor<Vec<u8>>,
-        stderr: Cursor<Vec<u8>>,
         env: HashMap<String, String>,
     }
 
     impl CommandHelper {
         pub fn new() -> CommandHelper {
+            let repo_path = gen_repo_path();
+            fs::create_dir_all(&repo_path).unwrap();
             CommandHelper {
-                repo_path: gen_repo_path(),
+                repo_path,
                 stdin: String::new(),
                 stdout: Cursor::new(vec![]),
-                stderr: Cursor::new(vec![]),
                 env: HashMap::new(),
             }
         }
@@ -192,32 +193,34 @@ mod tests {
         }
 
         pub fn jit_cmd(&mut self, args: &[&str]) -> Result<(String, String), String> {
-            let mut args = args.iter().map(|a| a.to_string()).collect::<Vec<String>>();
             // Command handler assumes first arg is executable name
-            args.insert(0, "rug".to_string());
-            let matches = get_app().get_matches_from(args);
-            let ctx = CommandContext {
-                dir: Path::new(&self.repo_path).to_path_buf(),
-                env: &self.env,
-                options: None,
-                stdin: self.stdin.as_bytes(),
-                stdout: &mut self.stdout,
-                stderr: &mut self.stderr,
-            };
+            let mut cmd = Command::new("rug") // TODO: Use target env var
+                .args(args)
+                .current_dir(&self.repo_path)
+                .envs(&self.env)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .stdin(Stdio::piped())
+                .spawn()
+                .expect("Failed to spawn child process");
 
-            match execute(matches, ctx) {
-                Ok(_) => Ok((
-                    str::from_utf8(&self.stdout.clone().into_inner())
-                        .expect("invalid stdout")
-                        .to_string(),
-                    str::from_utf8(&self.stderr.clone().into_inner())
-                        .expect("invalid stderr")
-                        .to_string(),
-                )),
-                Err(e) => {
-                    // eprintln!("execute failed: {:}", e);
-                    Err(e)
-                }
+            cmd.stdin
+                .as_mut()
+                .unwrap()
+                .write_all(self.stdin.as_bytes())
+                .unwrap();
+
+            let output = cmd.wait_with_output().expect("failed to run executable");
+
+            let (stdout, stderr) = (
+                String::from_utf8_lossy(&output.stdout).to_string(),
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            );
+
+            if output.status.success() {
+                Ok((stdout, stderr))
+            } else {
+                Err(stderr)
             }
         }
 
@@ -339,7 +342,7 @@ mod tests {
 
     impl Drop for CommandHelper {
         fn drop(&mut self) {
-            fs::remove_dir_all(&self.repo_path).unwrap();
+            fs::remove_dir_all(&self.repo_path);
         }
     }
 

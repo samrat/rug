@@ -68,12 +68,11 @@ where
 
     fn print_porcelain_format(&mut self) -> Result<(), String> {
         for file in &self.repo.changed {
-            writeln!(self.ctx.stdout, "{} {}", self.status_for(file), file)
-                .map_err(|e| e.to_string())?;
+            println!("{} {}", self.status_for(file), file);
         }
 
         for file in &self.repo.untracked {
-            writeln!(self.ctx.stdout, "?? {}", file).map_err(|e| e.to_string())?;
+            println!("?? {}", file);
         }
 
         Ok(())
@@ -90,47 +89,45 @@ where
     }
 
     fn print_index_changes(&mut self, message: &str, style: &str) -> Result<(), String> {
-        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
+        println!("{}", message);
 
         for (path, change_type) in &self.repo.index_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
-                writeln!(
-                    self.ctx.stdout,
+                println!(
                     "{}",
                     format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
-                )
-                .map_err(|e| e.to_string())?;
+                );
             }
         }
 
-        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
+        println!();
+        Ok(())
     }
 
     fn print_workspace_changes(&mut self, message: &str, style: &str) -> Result<(), String> {
-        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
+        println!("{}", message);
 
         for (path, change_type) in &self.repo.workspace_changes {
             if let Some(status) = LONG_STATUS.get(change_type) {
-                writeln!(
-                    self.ctx.stdout,
+                println!(
                     "{}",
                     format!("\t{:width$}{}", status, path, width = LABEL_WIDTH).color(style)
-                )
-                .map_err(|e| e.to_string())?;
+                );
             }
         }
 
-        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
+        println!();
+        Ok(())
     }
 
     fn print_untracked_files(&mut self, message: &str, style: &str) -> Result<(), String> {
-        writeln!(self.ctx.stdout, "{}\n", message).map_err(|e| e.to_string())?;
+        println!("{}", message);
 
         for path in &self.repo.untracked {
-            writeln!(self.ctx.stdout, "{}", format!("\t{}", path).color(style))
-                .map_err(|e| e.to_string())?;
+            println!("{}", format!("\t{}", path).color(style));
         }
-        writeln!(self.ctx.stdout).map_err(|e| e.to_string())
+        println!();
+        Ok(())
     }
 
     pub fn print_results(&mut self) -> Result<(), String> {
@@ -155,17 +152,14 @@ where
         }
 
         if !self.repo.workspace_changes.is_empty() {
-            writeln!(self.ctx.stdout, "no changes added to commit").map_err(|e| e.to_string())
+            println!("no changes added to commit");
         } else if !self.repo.untracked.is_empty() {
-            writeln!(
-                self.ctx.stdout,
-                "nothing added to commit but untracked files present"
-            )
-            .map_err(|e| e.to_string())
+            println!("nothing added to commit but untracked files present");
         } else {
-            writeln!(self.ctx.stdout, "nothing to commit, working tree clean")
-                .map_err(|e| e.to_string())
+            println!("nothing to commit, working tree clean");
         }
+
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), String> {

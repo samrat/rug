@@ -53,49 +53,62 @@ where
         let oid = commit.get_oid();
         let short = Database::short_oid(&oid);
 
-        writeln!(
-            self.ctx.stderr,
+        println!(
             "{}",
             format!("{} {} {}", message, short, commit.title_line())
-        ).map_err(|e| e.to_string())
+        );
+        Ok(())
     }
 
-    fn print_previous_head(&mut self, current_ref: &Ref, current_oid: &str, target_oid: &str) -> Result<(), String> {
+    fn print_previous_head(
+        &mut self,
+        current_ref: &Ref,
+        current_oid: &str,
+        target_oid: &str,
+    ) -> Result<(), String> {
         if current_ref.is_head() && current_oid != target_oid {
             return self.print_head_position("Previous HEAD position was", current_oid);
         }
         Ok(())
     }
 
-    fn print_detachment_notice(&mut self, current_ref: &Ref, target: &str, new_ref: &Ref) -> Result<(), String> {
+    fn print_detachment_notice(
+        &mut self,
+        current_ref: &Ref,
+        target: &str,
+        new_ref: &Ref,
+    ) -> Result<(), String> {
         if new_ref.is_head() && !current_ref.is_head() {
-            return writeln!(
-                self.ctx.stderr,
+            println!(
                 "{}
 
 {}
 ",
                 format!("Note: checking out '{}'.", target),
                 DETACHED_HEAD_MESSAGE
-            ).map_err(|e| e.to_string())
+            );
         }
         Ok(())
     }
 
-    fn print_new_head(&mut self, current_ref: &Ref, new_ref: &Ref, target: &str, target_oid: &str) -> Result<(), String> {
+    fn print_new_head(
+        &mut self,
+        current_ref: &Ref,
+        new_ref: &Ref,
+        target: &str,
+        target_oid: &str,
+    ) -> Result<(), String> {
         if new_ref.is_head() {
-            self.print_head_position("HEAD is now at", target_oid)
+            self.print_head_position("HEAD is now at", target_oid)?;
         } else if new_ref == current_ref {
-            writeln!(
-                self.ctx.stderr,
-                "{}",
-                format!("Already on {}", target)).map_err(|e| e.to_string())
+            eprintln!("{}", format!("Already on {}", target));
         } else {
-            writeln!(
-                self.ctx.stderr,
+            eprintln!(
                 "{}",
-                format!("Switched to branch {}", target)).map_err(|e| e.to_string())
+                format!("Switched to branch {}", target)
+            );
         }
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), String> {

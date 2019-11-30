@@ -49,23 +49,16 @@ where
         Ok(())
     }
 
-    fn show_commit(&mut self, commit: &Commit) -> Result<(), String> {
+    fn show_commit(&self, commit: &Commit) -> Result<(), String> {
         let author = &commit.author;
-        writeln!(self.ctx.stdout, "");
-        writeln!(self.ctx.stdout, "commit {}", commit.get_oid().yellow())
-            .map_err(|e| e.to_string())?;
-        writeln!(
-            self.ctx.stdout,
-            "Author: {} <{}>",
-            author.name, author.email
-        )
-        .map_err(|e| e.to_string())?;
-        writeln!(self.ctx.stdout, "Date: {}", author.readable_time()).map_err(|e| e.to_string())?;
-
-        writeln!(self.ctx.stdout, "");
+        println!();
+        println!("commit {}", commit.get_oid().yellow());
+        println!("Author: {} <{}>", author.name, author.email);
+        println!("Date: {}", author.readable_time());
+        println!();
 
         for line in commit.message.lines() {
-            writeln!(self.ctx.stdout, "    {}", line);
+            println!("    {}", line);
         }
         Ok(())
     }
