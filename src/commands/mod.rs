@@ -141,6 +141,7 @@ mod tests {
     use super::*;
     use crate::repository::Repository;
     use crate::util::*;
+    use assert_cmd::prelude::*;
     use filetime::FileTime;
     use std::env;
     use std::fs::{self, File, OpenOptions};
@@ -151,6 +152,7 @@ mod tests {
     use std::process::{Command, Stdio};
     use std::str;
     use std::time::{SystemTime, UNIX_EPOCH};
+    extern crate assert_cmd;
 
     pub fn gen_repo_path() -> PathBuf {
         let mut temp_dir = generate_temp_name();
@@ -193,8 +195,8 @@ mod tests {
         }
 
         pub fn jit_cmd(&mut self, args: &[&str]) -> Result<(String, String), String> {
-            // Command handler assumes first arg is executable name
-            let mut cmd = Command::new("rug") // TODO: Use target env var
+            let mut cmd = Command::cargo_bin("rug")
+                .unwrap()
                 .args(args)
                 .current_dir(&self.repo_path)
                 .envs(&self.env)
