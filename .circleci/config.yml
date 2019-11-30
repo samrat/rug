@@ -11,5 +11,8 @@ jobs:
           name: Version information
           command: rustc --version; cargo --version; rustup --version
       - run:
+          name: Build
+          command: cargo build
+      - run:
           name: Run tests
           command: cargo test --all

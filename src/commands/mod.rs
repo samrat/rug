@@ -195,7 +195,7 @@ mod tests {
         }
 
         pub fn jit_cmd(&mut self, args: &[&str]) -> Result<(String, String), String> {
-            let mut cmd = Command::cargo_bin("rug")
+            let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))
                 .unwrap()
                 .args(args)
                 .current_dir(&self.repo_path)
