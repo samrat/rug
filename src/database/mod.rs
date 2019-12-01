@@ -110,7 +110,7 @@ impl Database {
             .read(true)
             .create(false)
             .open(self.object_path(oid))
-            .expect(&format!("failed to open file: {:?}", self.object_path(oid)));
+            .unwrap_or_else(|_| panic!("failed to open file: {:?}", self.object_path(oid)));
         file.read_to_end(&mut contents)
             .expect("reading file failed");
 

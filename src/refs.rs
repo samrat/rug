@@ -31,7 +31,7 @@ pub enum Ref {
 impl Ref {
     pub fn is_head(&self) -> bool {
         match self {
-            Ref::Ref { oid: _ } => false,
+            Ref::Ref { .. } => false,
             Ref::SymRef { path } => path == "HEAD",
         }
     }
@@ -211,11 +211,10 @@ impl Refs {
     }
 
     fn list_refs(&self, dirname: &Path) -> Vec<Ref> {
-        let refs = fs::read_dir(self.pathname.join(dirname))
+        fs::read_dir(self.pathname.join(dirname))
             .expect("failed to read dir")
             .flat_map(|name| self.name_to_symref(name.unwrap()))
-            .collect();
-        refs
+            .collect()
     }
 
     pub fn ref_short_name(&self, r#ref: &Ref) -> String {

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::commands::CommandContext;
 
-const DEFAULT_BRANCH: &'static str = "master";
+const DEFAULT_BRANCH: &str = "master";
 
 pub fn init_command<I, O, E>(ctx: CommandContext<I, O, E>) -> Result<(), String>
 where
