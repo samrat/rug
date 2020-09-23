@@ -37,19 +37,22 @@ where
     pub fn run(&mut self) -> Result<(), String> {
         Pager::setup_pager();
 
-        let mut commits = vec![];
-        for c in &mut self.commits {
-            commits.push(c);
-        }
+        self.each_commit(Self::show_commit);
+        Ok(())
+    }
 
-        for c in commits {
-            self.show_commit(&c)?;
+    pub fn each_commit<F>(&mut self, f: F) -> Result<(), String>
+    where
+        F: Fn(&Commit) -> Result<(), String>,
+    {
+        for c in &mut self.commits {
+            f(&c)?;
         }
 
         Ok(())
     }
 
-    fn show_commit(&self, commit: &Commit) -> Result<(), String> {
+    fn show_commit(commit: &Commit) -> Result<(), String> {
         let author = &commit.author;
         println!();
         println!("commit {}", commit.get_oid().yellow());
