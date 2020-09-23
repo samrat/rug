@@ -13,6 +13,8 @@ where
     O: Write,
     E: Write,
 {
+    // FIXME: This is inconsistent with the struct for every
+    // other command.
     // repo: Repository,
     ctx: CommandContext<'a, I, O, E>,
     commits: CommitsLog,
@@ -37,7 +39,7 @@ where
     pub fn run(&mut self) -> Result<(), String> {
         Pager::setup_pager();
 
-        self.each_commit(Self::show_commit);
+        self.each_commit(Self::show_commit)?;
         Ok(())
     }
 

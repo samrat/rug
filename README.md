@@ -58,3 +58,33 @@ rug diff --cached
 ```
 rug branch foo HEAD~5
 ```
+
+### Gotchas with the `rug` repo
+
+I use `rug` as the version-control system for the `rug`
+source-code. However, because all commands are not implemented yet,
+I've been using `git` for eg. pushing to Github.
+
+This means sometimes you might have to hackily modify files in `.git`
+to bring it back into a state that `rug` finds acceptable. Here are
+some ways in which things can break:
+
+1. Updating `master` after pulling from `origin`
+   `rug pull` does not currently work.
+
+   After running `git fetch origin`, copy the SHA from
+   `.git/refs/remotes/origin/master` into `.git/refs/heads/master`:
+
+   ```shell
+   cp .git/refs/remotes/origin/master .git/refs/heads/master
+   ```
+
+2. `rug` doesn't understand packed objects
+
+    Copy the packed object outside `.git` and unpack it:
+
+    ```
+    mkdir temp
+    mv .git/objects/pack/pack-ab7ec7453bc7444032731b68f2c1fe06279bd017.pack temp/
+    git unpack-objects < temp/pack-ab7ec7453bc7444032731b68f2c1fe06279bd017.pack
+    ```
