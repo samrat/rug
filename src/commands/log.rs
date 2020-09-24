@@ -24,12 +24,10 @@ where
     O: Write,
     E: Write,
 {
-    // FIXME: This is inconsistent with the struct for every
-    // other command.
-    // repo: Rc<Repository>,
+    current_oid: Option<String>,
+    repo: Repository,
     ctx: CommandContext<'a, I, O, E>,
     options: Options,
-    commits: CommitsLog,
 }
 
 impl<'a, I, O, E> Log<'a, I, O, E>
@@ -43,14 +41,13 @@ where
         let root_path = working_dir.as_path();
         let repo = Repository::new(&root_path);
         let current_oid = repo.refs.read_head();
-        let commits = CommitsLog::new(current_oid, repo);
-
         let ctx_options = ctx.options.as_ref().unwrap().clone();
         let options = Self::define_options(ctx_options);
 
         Log {
             ctx,
-            commits,
+            repo,
+            current_oid,
             options,
         }
     }
@@ -108,7 +105,7 @@ where
     where
         F: Fn(&Commit) -> Result<(), String>,
     {
-        for c in &mut self.commits {
+        for c in &mut self.into_iter() {
             f(&c)?;
         }
 
@@ -149,18 +146,11 @@ where
     }
 }
 
-struct CommitsLog {
-    current_oid: Option<String>,
-    repo: Repository,
-}
-
-impl CommitsLog {
-    pub fn new(current_oid: Option<String>, repo: Repository) -> CommitsLog {
-        CommitsLog { current_oid, repo }
-    }
-}
-
-impl Iterator for CommitsLog {
+impl<'a, I, O, E> Iterator for Log<'a, I, O, E>
+where
+    I: Read,
+    O: Write,
+    E: Write, {
     type Item = Commit;
 
     fn next(&mut self) -> Option<Commit> {
