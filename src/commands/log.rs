@@ -95,8 +95,8 @@ where
     pub fn run(&mut self) -> Result<(), String> {
         Pager::setup_pager();
 
-        let abbrev = self.options.abbrev.clone();
-        let log_format = self.options.format.clone();
+        let abbrev = self.options.abbrev;
+        let log_format = self.options.format;
         self.each_commit(|commit| match log_format {
             FormatOption::Medium => Self::show_commit_medium(commit, abbrev),
             FormatOption::OneLine => Self::show_commit_oneline(commit, abbrev),
