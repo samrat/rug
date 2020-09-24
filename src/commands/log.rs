@@ -1,11 +1,22 @@
 use crate::commands::CommandContext;
 use crate::database::commit::Commit;
 use crate::database::object::Object;
-use crate::database::ParsedObject;
+use crate::database::{Database, ParsedObject};
 use crate::pager::Pager;
 use crate::repository::Repository;
 use colored::*;
 use std::io::{Read, Write};
+
+#[derive(Clone, Copy)]
+enum FormatOption {
+    Medium,
+    OneLine,
+}
+
+struct Options {
+    abbrev: bool,
+    format: FormatOption,
+}
 
 pub struct Log<'a, I, O, E>
 where
@@ -15,8 +26,9 @@ where
 {
     // FIXME: This is inconsistent with the struct for every
     // other command.
-    // repo: Repository,
+    // repo: Rc<Repository>,
     ctx: CommandContext<'a, I, O, E>,
+    options: Options,
     commits: CommitsLog,
 }
 
@@ -33,13 +45,62 @@ where
         let current_oid = repo.refs.read_head();
         let commits = CommitsLog::new(current_oid, repo);
 
-        Log { ctx, commits }
+        let ctx_options = ctx.options.as_ref().unwrap().clone();
+        let options = Self::define_options(ctx_options);
+
+        Log {
+            ctx,
+            commits,
+            options,
+        }
+    }
+
+    fn define_options(options: clap::ArgMatches) -> Options {
+        let mut abbrev = None;
+
+        if options.is_present("abbrev-commit") {
+            abbrev = Some(true);
+        }
+
+        if options.is_present("no-abbrev-commit") {
+            abbrev = Some(false);
+        }
+
+        let mut format = FormatOption::Medium;
+        if options.is_present("format") || options.is_present("pretty") {
+            match options.value_of("format").unwrap() {
+                "oneline" => {
+                    format = FormatOption::OneLine;
+                }
+                "medium" => {
+                    format = FormatOption::Medium;
+                }
+                _ => (),
+            };
+        }
+
+        if options.is_present("oneline") {
+            format = FormatOption::OneLine;
+            if abbrev == None {
+                abbrev = Some(true);
+            }
+        }
+
+        Options {
+            abbrev: abbrev.unwrap_or(false),
+            format,
+        }
     }
 
     pub fn run(&mut self) -> Result<(), String> {
         Pager::setup_pager();
 
-        self.each_commit(Self::show_commit)?;
+        let abbrev = self.options.abbrev.clone();
+        let log_format = self.options.format.clone();
+        self.each_commit(|commit| match log_format {
+            FormatOption::Medium => Self::show_commit_medium(commit, abbrev),
+            FormatOption::OneLine => Self::show_commit_oneline(commit, abbrev),
+        })?;
         Ok(())
     }
 
@@ -54,10 +115,19 @@ where
         Ok(())
     }
 
-    fn show_commit(commit: &Commit) -> Result<(), String> {
+    fn abbrev(commit: &Commit, abbrev: bool) -> String {
+        if abbrev {
+            let oid = commit.get_oid();
+            Database::short_oid(&oid).to_string()
+        } else {
+            commit.get_oid()
+        }
+    }
+
+    fn show_commit_medium(commit: &Commit, abbrev: bool) -> Result<(), String> {
         let author = &commit.author;
         println!();
-        println!("commit {}", commit.get_oid().yellow());
+        println!("commit {}", Self::abbrev(commit, abbrev).yellow());
         println!("Author: {} <{}>", author.name, author.email);
         println!("Date: {}", author.readable_time());
         println!();
@@ -65,6 +135,16 @@ where
         for line in commit.message.lines() {
             println!("    {}", line);
         }
+        Ok(())
+    }
+
+    fn show_commit_oneline(commit: &Commit, abbrev: bool) -> Result<(), String> {
+        println!(
+            "{} {}",
+            Self::abbrev(commit, abbrev).yellow(),
+            commit.title_line()
+        );
+
         Ok(())
     }
 }

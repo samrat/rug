@@ -81,6 +81,21 @@ pub fn get_app() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("log")
                 .about("Show commit logs")
+                .arg(Arg::with_name("abbrev-commit").long("abbrev-commit"))
+                .arg(Arg::with_name("no-abbrev-commit").long("no-abbrev-commit"))
+                .arg(
+                    Arg::with_name("pretty")
+                        .long("pretty")
+                        .takes_value(true)
+                        .value_name("format"),
+                )
+                .arg(
+                    Arg::with_name("format")
+                        .long("format")
+                        .takes_value(true)
+                        .value_name("format"),
+                )
+                .arg(Arg::with_name("oneline").long("oneline"))
                 .arg(Arg::with_name("args").multiple(true)),
         )
 }
@@ -360,5 +375,4 @@ mod tests {
             }
         }
     }
-
 }
