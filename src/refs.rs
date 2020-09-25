@@ -5,6 +5,7 @@ use std::fs::{self, DirEntry, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::cmp::{Ord, Ordering};
+use std::collections::HashMap;
 
 lazy_static! {
     static ref INVALID_FILENAME: RegexSet = {
@@ -33,6 +34,13 @@ impl Ref {
         match self {
             Ref::Ref { .. } => false,
             Ref::SymRef { path } => path == "HEAD",
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        match self {
+            Ref::Ref { .. } => unimplemented!(),
+            Ref::SymRef { path } => path,
         }
     }
 }
@@ -215,6 +223,34 @@ impl Refs {
             .expect("failed to read dir")
             .flat_map(|name| self.name_to_symref(name.unwrap()))
             .collect()
+    }
+
+    fn list_all_refs(&self) -> Vec<Ref> {
+        let mut all_refs = vec![Ref::SymRef { path: "HEAD".to_string() }];
+        let mut refs = self.list_refs(&self.refs_path());
+
+        all_refs.append(&mut refs);
+        all_refs
+    }
+
+    pub fn reverse_refs(&self) -> HashMap<String, Vec<Ref>> {
+        let mut table : HashMap<String, Vec<Ref>> = HashMap::new();
+
+        let all_refs = self.list_all_refs();
+
+        for r#ref in all_refs {
+            let oid = self.read_oid(&r#ref).unwrap(); // TODO: handle error
+            let oid_refs = table.get_mut(&oid);
+
+            if let Some(oid_refs) = oid_refs {
+                oid_refs.push(r#ref);
+            } else {
+                table.insert(oid, vec![r#ref]);
+            }
+            
+        }
+
+        table
     }
 
     pub fn ref_short_name(&self, r#ref: &Ref) -> String {

@@ -96,6 +96,13 @@ pub fn get_app() -> App<'static, 'static> {
                         .value_name("format"),
                 )
                 .arg(Arg::with_name("oneline").long("oneline"))
+                .arg(
+                    Arg::with_name("decorate")
+                        .long("decorate")
+                        .takes_value(true)
+                        .value_name("format"),
+                )
+                .arg(Arg::with_name("no-decorate").long("no-decorate"))
                 .arg(Arg::with_name("args").multiple(true)),
         )
 }

@@ -3,8 +3,10 @@ use crate::database::commit::Commit;
 use crate::database::object::Object;
 use crate::database::{Database, ParsedObject};
 use crate::pager::Pager;
+use crate::refs::Ref;
 use crate::repository::Repository;
 use colored::*;
+use std::collections::HashMap;
 use std::io::{Read, Write};
 
 #[derive(Clone, Copy)]
@@ -13,9 +15,18 @@ enum FormatOption {
     OneLine,
 }
 
+#[derive(Clone, Copy)]
+enum DecorateOption {
+    Auto,
+    Short,
+    Full,
+    No,
+}
+
 struct Options {
     abbrev: bool,
     format: FormatOption,
+    decorate: DecorateOption,
 }
 
 pub struct Log<'a, I, O, E>
@@ -28,6 +39,8 @@ where
     repo: Repository,
     ctx: CommandContext<'a, I, O, E>,
     options: Options,
+    reverse_refs: Option<HashMap<String, Vec<Ref>>>,
+    current_ref: Option<Ref>,
 }
 
 impl<'a, I, O, E> Log<'a, I, O, E>
@@ -49,6 +62,8 @@ where
             repo,
             current_oid,
             options,
+            reverse_refs: None,
+            current_ref: None,
         }
     }
 
@@ -58,7 +73,6 @@ where
         if options.is_present("abbrev-commit") {
             abbrev = Some(true);
         }
-
         if options.is_present("no-abbrev-commit") {
             abbrev = Some(false);
         }
@@ -83,37 +97,62 @@ where
             }
         }
 
+        let mut decorate = DecorateOption::Short;
+
+        if options.is_present("decorate") {
+            decorate = match options.value_of("decorate").unwrap() {
+                "full" => DecorateOption::Full,
+                "short" => DecorateOption::Short,
+                "no" => DecorateOption::No,
+                _ => unimplemented!(),
+            }
+        }
+
+        if options.is_present("no-decorate") {
+            decorate = DecorateOption::No;
+        }
+
         Options {
             abbrev: abbrev.unwrap_or(false),
             format,
+            decorate,
         }
     }
 
     pub fn run(&mut self) -> Result<(), String> {
         Pager::setup_pager();
 
-        let abbrev = self.options.abbrev;
-        let log_format = self.options.format;
-        self.each_commit(|commit| match log_format {
-            FormatOption::Medium => Self::show_commit_medium(commit, abbrev),
-            FormatOption::OneLine => Self::show_commit_oneline(commit, abbrev),
-        })?;
+        self.reverse_refs = Some(self.repo.refs.reverse_refs());
+        self.current_ref = Some(self.repo.refs.current_ref("HEAD"));
+
+        // FIXME: Print commits as they are returned by the iterator
+        // instead of collecting into a Vec.
+        let mut commits = vec![];
+        for c in &mut self.into_iter() {
+            commits.push(c);
+        }
+
+        commits
+            .iter()
+            .for_each(|commit| self.show_commit(commit).unwrap());
         Ok(())
     }
 
-    pub fn each_commit<F>(&mut self, f: F) -> Result<(), String>
-    where
-        F: Fn(&Commit) -> Result<(), String>,
-    {
-        for c in &mut self.into_iter() {
-            f(&c)?;
+    fn show_commit(&self, commit: &Commit) -> Result<(), String> {
+        match self.options.format {
+            FormatOption::Medium => {
+                self.show_commit_medium(commit)?; // , abbrev, decorate, reverse_refs, current_ref)
+            }
+            FormatOption::OneLine => {
+                self.show_commit_oneline(commit)?; // , abbrev, decorate, reverse_refs, current_ref)
+            }
         }
 
         Ok(())
     }
 
-    fn abbrev(commit: &Commit, abbrev: bool) -> String {
-        if abbrev {
+    fn abbrev(&self, commit: &Commit) -> String {
+        if self.options.abbrev {
             let oid = commit.get_oid();
             Database::short_oid(&oid).to_string()
         } else {
@@ -121,10 +160,14 @@ where
         }
     }
 
-    fn show_commit_medium(commit: &Commit, abbrev: bool) -> Result<(), String> {
+    fn show_commit_medium(&self, commit: &Commit) -> Result<(), String> {
         let author = &commit.author;
         println!();
-        println!("commit {}", Self::abbrev(commit, abbrev).yellow());
+        println!(
+            "commit {} {}",
+            self.abbrev(commit).yellow(),
+            self.decorate(commit)
+        );
         println!("Author: {} <{}>", author.name, author.email);
         println!("Date: {}", author.readable_time());
         println!();
@@ -135,14 +178,70 @@ where
         Ok(())
     }
 
-    fn show_commit_oneline(commit: &Commit, abbrev: bool) -> Result<(), String> {
+    fn show_commit_oneline(&self, commit: &Commit) -> Result<(), String> {
         println!(
-            "{} {}",
-            Self::abbrev(commit, abbrev).yellow(),
+            "{} {} {}",
+            self.abbrev(commit).yellow(),
+            self.decorate(commit),
             commit.title_line()
         );
 
         Ok(())
+    }
+
+    fn decorate(&self, commit: &Commit) -> String {
+        match self.options.decorate {
+            DecorateOption::No | DecorateOption::Auto => return "".to_string(), // TODO: check isatty
+            _ => (),
+        }
+
+        let refs = self.reverse_refs.as_ref().unwrap().get(&commit.get_oid());
+        if let Some(refs) = refs {
+            let (head, refs): (Vec<&Ref>, Vec<&Ref>) = refs.into_iter().partition(|r#ref| {
+                r#ref.is_head() && !self.current_ref.as_ref().unwrap().is_head()
+            });
+            let names: Vec<_> = refs
+                .iter()
+                .map(|r#ref| self.decoration_name(head.get(0), r#ref))
+                .collect();
+
+            format!(
+                " {}{}{}",
+                "(".yellow(),
+                names.join(&", ".yellow()),
+                ")".yellow()
+            )
+        } else {
+            "".to_string()
+        }
+    }
+
+    fn decoration_name(&self, head: Option<&&Ref>, r#ref: &Ref) -> String {
+        let mut name = match self.options.decorate {
+            DecorateOption::Short | DecorateOption::Auto => self.repo.refs.ref_short_name(r#ref),
+            DecorateOption::Full => r#ref.path().to_string(),
+            _ => unimplemented!(),
+        };
+
+        name = name.bold().color(Self::ref_color(&r#ref)).to_string();
+
+        if let Some(head) = head {
+            if r#ref == self.current_ref.as_ref().unwrap() {
+                name = format!("{} -> {}", "HEAD", name)
+                    .color(Self::ref_color(head))
+                    .to_string();
+            }
+        }
+
+        name
+    }
+
+    fn ref_color(r#ref: &Ref) -> &str {
+        if r#ref.is_head() {
+            "cyan"
+        } else {
+            "green"
+        }
     }
 }
 
@@ -150,7 +249,8 @@ impl<'a, I, O, E> Iterator for Log<'a, I, O, E>
 where
     I: Read,
     O: Write,
-    E: Write, {
+    E: Write,
+{
     type Item = Commit;
 
     fn next(&mut self) -> Option<Commit> {

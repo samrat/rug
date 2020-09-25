@@ -167,10 +167,7 @@ where
         let oid = self.repo.refs.delete_branch(branch_name)?;
         let short = Database::short_oid(&oid);
 
-        println!(
-            "Deleted branch {} (was {})",
-            branch_name, short
-        );
+        println!("Deleted branch {} (was {})", branch_name, short);
         Ok(())
     }
 }

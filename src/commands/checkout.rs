@@ -103,10 +103,7 @@ where
         } else if new_ref == current_ref {
             eprintln!("{}", format!("Already on {}", target));
         } else {
-            eprintln!(
-                "{}",
-                format!("Switched to branch {}", target)
-            );
+            eprintln!("{}", format!("Switched to branch {}", target));
         }
         Ok(())
     }
@@ -991,5 +988,4 @@ D  outer/inner/3.txt\n",
 A  outer/inner/4.txt\n",
         );
     }
-
 }
